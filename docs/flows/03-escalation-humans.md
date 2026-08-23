@@ -47,6 +47,17 @@ Engine matches an escalate rule
 | Notifications | Generic signed webhooks (HTTP POST, HMAC-signed payload) on escalation events; Slack/Teams = webhook-format adapters over the same mechanism |
 | Dashboard | Inbox UI: pending list, decision context (what/why/agent/derived context), expiry countdown, approve/deny + note |
 | Config | `WARDEN_ESCALATION_TTL_SECONDS=900`, sweeper interval, webhook URL, webhook secret |
+
+### Infrastructure stance — no queue, no external scheduler
+
+- Sweeper = in-process tokio background task (one indexed query per 30s).
+- Webhook fan-out = `tokio::spawn`-ed async sends (`reqwest`) with HMAC-signed payloads (`hmac` crate).
+- Explicitly REJECTED: Celery / RabbitMQ / SQS / any external queue. A queue adds an external
+  service, eventual consistency, and ops burden for work in-process async tasks handle at any
+  realistic scale. Single-binary philosophy: everything Flow 3 needs runs inside shipped processes.
+- Concurrent-resolution safety comes from the DB: `UPDATE ... WHERE status='pending'` row-lock;
+  the loser gets 409.
+- New crates for this flow: `hmac` (webhook signing). Everything else reuses Flow 2 decisions.
 | Anti-fatigue | Derived-attribute budgets auto-allow within bounds; `WARN_BROAD_TARGET` lint on wide escalate rules; escalation-rate metric (target <2% of decisions); shadow mode shows would-escalate volume before enforcement |
 
 ## Evidence example
