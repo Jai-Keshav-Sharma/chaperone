@@ -22,7 +22,7 @@ Engine matches an escalate rule
   → 4. Consumption: agent retries identical call with escalation_id →
        validates: exists · approved · unconsumed · params_binding_hash equality
        Pass → ALLOW (ESCALATION_APPROVED), status=consumed, DECISION entry appended
-       Fail → BLOCK (ESCALATION_DENIED|EXPIRED|ALREADY_CONSUMED|PARAMS_MISMATCH)
+       Fail → BLOCK (ESCALATION_DENIED|ESCALATION_EXPIRED|ESCALATION_ALREADY_CONSUMED|ESCALATION_PARAMS_MISMATCH)
   → 5. Evidence: ≥2 (usually 3) chained ledger entries = complete human-oversight story
        (EU AI Act Art. 14)
 ```

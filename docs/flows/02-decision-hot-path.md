@@ -11,7 +11,9 @@ Agent proposes action (tool call)
   → POST to decision service (1000ms timeout)
   → 1. Agent lookup   (unknown/inactive → BLOCK AGENT_UNKNOWN / AGENT_INACTIVE, still ledgered)
   → 2. Policy lookup  (in-proc → Redis → DB; unavailable → BLOCK FAIL_CLOSED_POLICY_UNAVAILABLE)
-  → 3. Derived context (budgets/velocity computed from ledger at the boundary, then ledgered)
+  → 3. Derived context (budgets/velocity read from the materialized derived_counters —
+       a rebuildable read-acceleration index; the chain remains the source of truth —
+       computed at the boundary, then ledgered)
   → 4. Engine evaluation (Cedar): determining rules →
        BLOCK-rule → BLOCK | else ESCALATE-rule → ESCALATE | else ALLOW-rule → ALLOW
        | else BLOCK (DEFAULT_DENY). Eval error → BLOCK (EVAL_ERROR).

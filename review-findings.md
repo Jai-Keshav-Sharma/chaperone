@@ -1,5 +1,10 @@
 # Pre-Build Review — Findings & Action Items
 
+> **STATUS: RESOLVED.** All findings below have been triaged, verified, and applied.
+> Item-by-item verdicts and fixes live in
+> [`docs/review-findings-resolution.md`](docs/review-findings-resolution.md)
+> (this file is preserved as the original review record).
+
 Status: OPEN. Date: 2026-08-23. Source: external review of the locked specs
 (all 17 docs) + web verification of external assumptions (Aug 2026).
 Companion to docs/goals.md, docs/tech-stack.md, docs/policy-ir.md,

@@ -58,6 +58,11 @@ the model gets no vote.
 | Outbound calls to unknown hosts (curl|sh installers) | block |
 | File deletions above N/hour (velocity rule via derived context) | escalate |
 | Refund-like calls above threshold | escalate |
+| Benign namespace — fs.read / Read tool, ls/grep/cat within the workspace, git status, safe web reads | allow |
+
+The pack covers the FULL normalized namespace with explicit low-risk allow rules, so
+nothing falls to NO_POLICY after `warden init` (review BUG-3). Single source of truth:
+this table == Flow 9's pack description.
 
 ## Tooling
 
