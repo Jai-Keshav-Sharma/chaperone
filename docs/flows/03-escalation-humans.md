@@ -20,7 +20,7 @@ Engine matches an escalate rule
        Background sweeper (30s): overdue → expired + EXPIRED ledger entry.
        SILENCE ALWAYS MEANS DENY.
   → 4. Consumption: agent retries identical call with escalation_id →
-       validates: exists · approved · unconsumed · params_hash equality
+       validates: exists · approved · unconsumed · params_binding_hash equality
        Pass → ALLOW (ESCALATION_APPROVED), status=consumed, DECISION entry appended
        Fail → BLOCK (ESCALATION_DENIED|EXPIRED|ALREADY_CONSUMED|PARAMS_MISMATCH)
   → 5. Evidence: ≥2 (usually 3) chained ledger entries = complete human-oversight story
@@ -56,8 +56,9 @@ One approval surface, chain intact — with every clock bounded.
 
 1. Poll-based, never blocking: decision API returns immediately; no held connections
    (except gateway MRTR, bounded ≤ min(expiry, 120s)).
-2. Approvals are single-use and bind to exact params (params_hash) — bait-and-switch
-   impossible. Any retry with different params → ESCALATION_PARAMS_MISMATCH block.
+2. Approvals are single-use and bind to exact params (params_binding_hash — the
+   canonical semantic hash) — bait-and-switch impossible. Any retry with different
+   params → ESCALATION_PARAMS_MISMATCH block.
 3. Expiry is automatic and silent denial is the default. Unanswered ≠ approved.
 4. Every state transition is ledgered: DECISION → RESOLVED → (CONSUMED DECISION).
 
@@ -65,7 +66,7 @@ One approval surface, chain intact — with every clock bounded.
 
 | Concern | Choice |
 |---|---|
-| Storage | `escalations` table (relational, sqlx): escalation_id PK, request_id, agent_id FK, policy_id+version, rule_ids JSON, tool, proposed_params JSON (full params for approver visibility — ledger keeps only the hash), params_hash, status enum, resolver, resolution_note, created_at, expires_at, resolved_at, decision_entry_seq FK, resolution_entry_seq FK. Index (status, expires_at) for the sweeper |
+| Storage | `escalations` table (relational, sqlx): escalation_id PK, request_id, agent_id FK, policy_id+version, rule_ids JSON, tool, proposed_params JSON (full params for approver visibility — ledger keeps only the hash), params_binding_hash (canonical semantic hash, retry binding only — NOT the ledger's raw-bytes params_hash), status enum, resolver, resolution_note, created_at, expires_at, resolved_at, decision_entry_seq FK, resolution_entry_seq FK. Index (status, expires_at) for the sweeper |
 | Sweeper | tokio background task, 30s interval, `expire_due()` → EXPIRED ledger entries; manual `POST /v1/escalations/expire` for deterministic tests |
 | Inbox API | axum routes: `GET /v1/escalations?status=pending`, `GET /v1/escalations/{id}`, `POST /v1/escalations/{id}/resolve {resolution, resolver, note}` — 409 if not pending |
 | Gateway MRTR | Poll every 2s, bounded ≤ min(expiry, 120s); approved → auto re-submit with escalation_id + forward; denied/expired → JSON-RPC error |
@@ -73,6 +74,7 @@ One approval surface, chain intact — with every clock bounded.
 | Notifications | Generic signed webhooks (HTTP POST, HMAC-signed payload) on escalation events; Slack/Teams = webhook-format adapters over the same mechanism |
 | Dashboard | Inbox UI: pending list, decision context (what/why/agent/derived context), expiry countdown, approve/deny + note |
 | Config | `WARDEN_ESCALATION_TTL_SECONDS=900`, sweeper interval, webhook URL, webhook secret |
+| Anti-fatigue | Derived-attribute budgets auto-allow within bounds; `WARN_BROAD_TARGET` lint on wide escalate rules; escalation-rate metric (target <2% of decisions); shadow mode shows would-escalate volume before enforcement |
 
 ### Infrastructure stance — no queue, no external scheduler
 
@@ -84,7 +86,6 @@ One approval surface, chain intact — with every clock bounded.
 - Concurrent-resolution safety comes from the DB: `UPDATE ... WHERE status='pending'` row-lock;
   the loser gets 409.
 - New crates for this flow: `hmac` (webhook signing). Everything else reuses Flow 2 decisions.
-| Anti-fatigue | Derived-attribute budgets auto-allow within bounds; `WARN_BROAD_TARGET` lint on wide escalate rules; escalation-rate metric (target <2% of decisions); shadow mode shows would-escalate volume before enforcement |
 
 ## Evidence example
 
