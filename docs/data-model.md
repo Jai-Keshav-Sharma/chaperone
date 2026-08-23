@@ -22,6 +22,7 @@ CREATE TABLE agent_identities (
     name                VARCHAR(128) NOT NULL,
     role                VARCHAR(64)  NOT NULL,
     spiffe_id           VARCHAR(256),              -- future identity binding, unused in logic
+    tenant_id           VARCHAR(64),               -- nullable, unused in logic; multi-tenant fleet insurance (PERF-2)
     max_delegation_depth INTEGER NOT NULL DEFAULT 1,
     is_active           BOOLEAN NOT NULL DEFAULT TRUE,
     created_at          TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -87,7 +88,8 @@ CREATE TABLE ledger_entries (
     request_id      VARCHAR(64) NOT NULL,
     agent_id        VARCHAR(64) NOT NULL,
     tool            VARCHAR(128) NOT NULL,
-    params_hash     VARCHAR(64) NOT NULL,            -- sha256 of raw params bytes as received; NEVER null (binding)
+    params_hash     VARCHAR(64) NOT NULL,            -- sha256 of RAW params bytes as received; never null.
+                                                   -- Distinct from escalations.params_binding_hash (canonical, retry binding)
     tenant_id       VARCHAR(64),                     -- nullable, unused in logic; sharding insurance (PERF-2)
     decision        VARCHAR(16) NOT NULL,          -- ALLOW|BLOCK|ESCALATE|WOULD_*|APPROVED|DENIED|EXPIRED
     policy_id       VARCHAR(64) NOT NULL,          -- '__none__' for NO_POLICY
@@ -132,7 +134,8 @@ CREATE TABLE escalations (
     rule_ids        TEXT NOT NULL,                 -- JSON array of determining escalate rules
     tool            VARCHAR(128) NOT NULL,
     proposed_params TEXT NOT NULL,                 -- full params JSON (approver visibility; ledger keeps only hash)
-    params_hash     VARCHAR(64) NOT NULL,
+    params_binding_hash VARCHAR(64) NOT NULL,      -- sha256(canonical_json(params)); RETRY BINDING only.
+                                                   -- Distinct from ledger_entries.params_hash (raw bytes) — do not conflate
     status          VARCHAR(16) NOT NULL DEFAULT 'pending',  -- pending|approved|denied|expired|consumed
     resolver        VARCHAR(64),
     resolution_note TEXT,

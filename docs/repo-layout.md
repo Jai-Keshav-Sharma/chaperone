@@ -23,7 +23,7 @@ warden/                              # Jai-Keshav-Sharma/warden (private until l
 │   │       │                        #   needs_params, derived-attribute computer
 │   │       ├── ledger/              # chain (append/genesis/recovery), verify, merkle (RFC 6962),
 │   │       │                        #   checkpoint (C2SP + Ed25519), anchor (Rekor/TSA), proof, export
-│   │       ├── storage/             # schema.rs (all 7 tables), agents, policies, ledger_store, escalations
+│   │       ├── storage/             # schema.rs (all 8 tables), agents, policies, ledger_store, escalations
 │   │       ├── cache/               # 3-tier policy cache + Redis pub/sub
 │   │       ├── escalation/          # lifecycle service + sweeper
 │   │       ├── compiler/            # OFFLINE: providers (anthropic | openai-compat | ollama | fixture),

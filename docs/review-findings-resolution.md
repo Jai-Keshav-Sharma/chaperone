@@ -69,3 +69,12 @@ WRONG (corrected below with verification); all PERF/ADOPT items adopted.
 - MRTR real-client-library testing → flows/06 (build-time verification; design unchanged).
 - leptess maintenance check + fallback (rusty-tesseract / Tesseract CLI) → flows/01.
 - Paper venue with artifact evaluation (AE badges) → goals.
+
+## Second review pass — residual items (resolved 2026-08-23)
+
+| Item | Fix |
+|---|---|
+| Hook-local approval prompt needs a time bound below the host's hook timeout (~60s) | Prompt bound ~30s hard; on expiry → deny + WARDEN_ESCALATED message, escalation stays pending; late approval via CLI/dashboard; params-bound retry completes. Prompt bound and 900s TTL are independent clocks, never assumed to coincide → flows/03 step 2/5 rewritten |
+| Table count drift (repo-layout said "7 tables") | Corrected to 8 (derived_counters added) → repo-layout |
+| tenant_id overclaim (resolution log said ledger + identity tables; only ledger_entries had it) | tenant_id added to agent_identities (matters more in multi-tenant fleet mode) → data-model. Resolution log claim now accurate |
+| Two hashes, one name (ledger_entries.params_hash = raw bytes vs escalations.params_hash = canonical) | Renamed: `escalations.params_binding_hash` (canonical, retry binding only); both DDL comments state the distinction explicitly → data-model, flows/06 |

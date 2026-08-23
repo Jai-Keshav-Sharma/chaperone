@@ -37,14 +37,20 @@ EU AI Act Art. 14 evidence story.
 Instead, on ESCALATE the hook resolves the escalation ITSELF:
 1. Open the user's console directly (Windows CONIN$/CONOUT$; Unix /dev/tty). The hook's
    stdin carries the event JSON, so a real TTY must be opened explicitly.
-2. Prompt: what / why / expires-at + [A]pprove / [D]eny.
-3. Approve → POST /resolve approve → ESCALATION_RESOLVED(APPROVED) entry →
-   re-submit decision with escalation_id → ALLOW (ESCALATION_APPROVED) → return allow.
-4. Deny → resolve deny → ESCALATION_RESOLVED(DENIED) entry → return deny.
-5. No console available (non-interactive) → deny + WARDEN_ESCALATED message (fallback).
+2. Prompt: what / why / expires-at + [A]pprove / [D]eny — with a HARD TIME BOUND of
+   ~30s. The host kills hooks on its own timeout (~60s historically); an unbounded
+   prompt would be killed mid-approval at the exact moment the flagship demo must shine.
+3. Approve within the bound → POST /resolve approve → ESCALATION_RESOLVED(APPROVED)
+   entry → re-submit decision with escalation_id → ALLOW (ESCALATION_APPROVED) → return allow.
+4. Deny within the bound → resolve deny → ESCALATION_RESOLVED(DENIED) entry → return deny.
+5. Prompt times out (or no console available) → return deny with the WARDEN_ESCALATED
+   ticket message; the escalation REMAINS PENDING. Late approval arrives via the
+   CLI/dashboard inbox path, and the params-bound retry path completes it.
+   The prompt bound (~30s) and the escalation TTL (900s) are independent clocks —
+   never assumed to coincide.
 
 Result: DECISION(ESCALATE) → RESOLVED(APPROVED) → DECISION(ALLOW, ESCALATION_APPROVED).
-One approval surface, chain intact.
+One approval surface, chain intact — with every clock bounded.
 
 ## Invariants
 

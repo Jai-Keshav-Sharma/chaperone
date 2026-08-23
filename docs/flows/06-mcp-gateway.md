@@ -55,8 +55,8 @@ Old design: a no-param-condition escalate rule → `params_hash: null` → appro
 to nothing → ANY params pass on retry. Resolved:
 
 - Every decision carries params_hash = sha256(raw params bytes). Never null.
-- Every ESCALATE deserializes the body (inbox visibility) and stores the canonical
-  semantic hash for binding.
+- Every ESCALATE deserializes the body (inbox visibility) and stores
+  `params_binding_hash` = sha256(canonical_json(params)) for retry binding.
 - Retry binding compares canonical hashes: semantically different params are always
   caught; key-ordering differences on legitimate identical retries do not false-mismatch.
 
