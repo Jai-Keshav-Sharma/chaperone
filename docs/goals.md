@@ -25,6 +25,10 @@ global race is young.
   positioned as "Seatbelts for `--dangerously-skip-permissions`".
 - Five-minute wow: warden init → rm -rf blocked with ledger receipt → refund escalated
   → approve → retry. The demo IS the pitch.
+- Launch assets: interactive browser demo (wasm-compiled engine — type a rule, watch
+  a decision + receipt render, no signup); `warden-policy-test` GitHub Action (the
+  "CI for policies" as a free Action — sticky adoption loop); Windows first-class
+  (winget/scoop, CI OS matrix) — the dev platform is Windows.
 - Honest-numbers discipline: publish only what the benchmark measures
   (recall ≥98.5%, false-block ≤1.5%, P95 <50ms, chain verification).
 
@@ -38,7 +42,15 @@ global race is young.
   enterprise (gateway + central service + compliance evidence).
 - India first-mover narrative on the local demand curve (EY / RBI / SEBI / MeitY).
 - Native framework integration: Warden as a first-class, officially documented option
-  inside LangGraph (then OpenAI Agents SDK, CrewAI, ADK). Optional: AARM conformance.
+  inside LangGraph (then OpenAI Agents SDK, CrewAI, ADK).
+- **AARM conformance = LAUNCH REQUIREMENT** (not optional). AARM — Autonomous Action
+  Runtime Management — is the Vanta-authored spec (arXiv:2602.09433, Feb 2026) donated
+  to the Cloud Security Alliance (Apr 2026), with a working group, conformance program,
+  and vendors already claiming alignment. Warden's intercept → evaluate → ledgered
+  decision → HITL architecture maps 1:1 onto its requirements (R1–R6). Positioning:
+  "AARM-conformant, and the only implementation whose conformance and decisions are
+  cryptographically verifiable." CSA relationship doubles as the India/enterprise
+  credibility channel.
 
 ### 4. Research (paper + dataset)
 
@@ -48,6 +60,12 @@ global race is young.
 - Dataset = the benchmark corpus (Flow 10): scenarios.jsonl + gold policies + gold SOPs,
   public, seeded, reproducible. Code Apache-2.0, data CC-BY-4.0. Closes the paper's
   open problem (iii) — the first public pre-action-authorization benchmark.
+- Label provenance is part of honesty: every gold_decision carries {labeler, source,
+  date}; versioned scenario-submission format for external contributors; inter-annotator
+  agreement (Cohen's κ) measured and cited in the paper. A self-authored corpus is a
+  conformance test — external contributions make it an efficacy benchmark.
+- Paper target venue: prefer one with artifact evaluation (Available/Reusable badges) —
+  checked-in scenarios + byte-identical `make paper-figures` are practically designed for it.
 - Experiments map: E4 → paper (i) compiler fidelity; E5 → paper (ii) tamper evidence;
   Flow 10 → paper (iii) community benchmark.
 - Honest-numbers rule: the paper cites nothing the benchmark didn't produce.

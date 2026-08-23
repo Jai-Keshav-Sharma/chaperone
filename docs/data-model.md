@@ -87,14 +87,16 @@ CREATE TABLE ledger_entries (
     request_id      VARCHAR(64) NOT NULL,
     agent_id        VARCHAR(64) NOT NULL,
     tool            VARCHAR(128) NOT NULL,
-    params_hash     VARCHAR(64),                   -- NULL = fast path (params immaterial to decision)
+    params_hash     VARCHAR(64) NOT NULL,            -- sha256 of raw params bytes as received; NEVER null (binding)
+    tenant_id       VARCHAR(64),                     -- nullable, unused in logic; sharding insurance (PERF-2)
     decision        VARCHAR(16) NOT NULL,          -- ALLOW|BLOCK|ESCALATE|WOULD_*|APPROVED|DENIED|EXPIRED
     policy_id       VARCHAR(64) NOT NULL,          -- '__none__' for NO_POLICY
     policy_version  INTEGER NOT NULL DEFAULT 0,
     policy_hash     VARCHAR(64) NOT NULL,          -- '0'*64 when no policy
     determining_rule_ids TEXT NOT NULL,            -- JSON array, sorted
     reason_code     VARCHAR(48) NOT NULL,
-    decision_trace  TEXT NOT NULL,                 -- JSON; NOT in preimage
+    decision_trace  TEXT NOT NULL,                 -- JSON; NOT in preimage; REDACTED — rule ids,
+                                                   -- match booleans, operand paths only; NEVER raw param values
     evaluation_latency_ms REAL NOT NULL,
     escalation_id   VARCHAR(64)
 );
@@ -144,14 +146,37 @@ CREATE TABLE escalations (
 CREATE INDEX ix_escalations_status ON escalations(status, expires_at);
 ```
 
-## Engine specifics
+### 8. derived_counters — materialized derived attributes (review PERF-1)
+
+```sql
+CREATE TABLE derived_counters (
+    counter_key  VARCHAR(128) PRIMARY KEY,   -- hash of (agent_id, tool, window_start, param_path)
+    agent_id     VARCHAR(64) NOT NULL,
+    tool         VARCHAR(128) NOT NULL,
+    window_ts    INTEGER NOT NULL,           -- window start epoch
+    value        REAL NOT NULL,              -- running sum / count
+    updated_seq  INTEGER NOT NULL            -- ledger seq of last contributing entry
+);
+```
+
+Updated INSIDE the ledger append transaction. Read-acceleration index only: rebuildable
+from the chain at any time; the chain remains the single source of truth, so
+determinism is untouched. Avoids O(window) SUM per decision as the ledger grows.
+
+### Engine specifics (single storage path — review PERF-5)
+
+- One implementation via `sqlx` for BOTH SQLite and Postgres (compile-time-checked
+  queries for the static set; no rusqlite). One code path for the most
+  correctness-critical writes.
 
 - SQLite: WAL journal mode; append transaction = BEGIN IMMEDIATE; exclusive lock file =
   single-writer enforcement; synchronous FULL (durability over raw speed).
 - Postgres: pg_advisory_lock for single writer; JSONB for report/trace columns;
   partial unique index for one-active-policy.
 - Concurrency: concurrent resolution handled by `UPDATE ... WHERE status='pending'` row-lock (loser → 409).
-- No UPDATE/DELETE statements exist anywhere for ledger tables. Retention (future) = archive-and-anchor.
+- No UPDATE/DELETE statements exist anywhere for ledger tables. Retention = archive-and-anchor,
+  designed BEFORE production: capacity metrics + alarms on /metrics; disk-full is the
+  fleet-wide off switch — fail-closed is correct, so ops must see it coming (review PERF-3).
 
 ## Runtime config (not DB)
 

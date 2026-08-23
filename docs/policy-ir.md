@@ -76,7 +76,10 @@ else                          → BLOCK    (DEFAULT_DENY)
 
 - Missing param / context path, or type mismatch, aborts evaluation → BLOCK (EVAL_ERROR).
   Rules are NEVER silently skipped (skipping can fall through to allow = fail-open).
-- Tool not targeted by any active policy → BLOCK (NO_POLICY).
+- Tool targeted by no active policy → deployment-level `ungoverned_default`:
+  `block` (default; warden serve) → BLOCK (NO_POLICY); `allow` (local quickstart) →
+  ALLOW (UNGOVERNED_ALLOW), loudly ledgered. This is a POLICY choice, not a failure
+  fallback — fail-closed on Warden/infra failure is untouched and non-negotiable.
 - determining_rule_ids lists ALL matched rules, sorted — trivially explainable verdicts.
 
 ## Static properties derived from IR
@@ -84,9 +87,11 @@ else                          → BLOCK    (DEFAULT_DENY)
 - policy_hash = sha256(canonical_json(ir)) — pins every decision to exact policy bytes.
 - needs_params(tool): any rule targeting tool with a condition referencing param operands.
   Precomputed per tool at load; drives the Flow 6 fast path.
-- Lint: ERROR_DUPLICATE_RULE_ID, ERROR_NO_RULES, ERROR_ALLOW_ESCALATE_OVERLAP (block
-  activation); WARN_UNREACHABLE_ALLOW, WARN_TOOL_UNGOVERNED, WARN_BROAD_TARGET (surface
-  in conflict report).
+- Lint: ERROR_DUPLICATE_RULE_ID, ERROR_NO_RULES, ERROR_ALLOW_ESCALATE_OVERLAP,
+  ERROR_CROSS_POLICY_CONFLICT (an allow and a block/escalate rule in DIFFERENT active
+  policies targeting the same tool, jointly satisfiable — checked across the active
+  policy SET, not per-policy; blocks activation); WARN_UNREACHABLE_ALLOW,
+  WARN_TOOL_UNGOVERNED, WARN_BROAD_TARGET (surface in conflict report).
 - Cedar transpile (deterministic, snapshot-tested): allow→permit, block→forbid,
   escalate→forbid with annotation; entity model: principal=Warden::Agent, action=Warden::Action::"call",
   resource=Warden::Tool::"<name>", context={params, request_time, derived}.

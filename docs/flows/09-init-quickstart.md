@@ -7,9 +7,14 @@ Status: DECIDED. Date: 2026-08-23.
 `warden init` transforms a stranger into a user in one command:
 
 1. Creates local SQLite database (genesis entry written)
-2. Loads + activates the starter-safety policy pack
-3. Merges the hook entry into .claude/settings.json (+ Cursor config; merge, never clobber)
-4. Prints the 3-command demo
+2. Loads + activates the starter-safety policy pack — which includes explicit LOW-RISK
+   ALLOW rules covering the benign namespace (fs.read, ls/grep-style shell commands,
+   git status, safe web reads) so nothing falls to NO_POLICY (review BUG-3)
+3. Sets `ungoverned_default: allow` for THIS local deployment (warden serve defaults to
+   block; ungoverned allowances are ledgered as UNGOVERNED_ALLOW and surfaced on the
+   dashboard/shadow stats — loudly accounted, never silent)
+4. Merges the hook entry into .claude/settings.json (+ Cursor config; merge, never clobber)
+5. Prints the 3-command demo
 
 ## Demo script
 

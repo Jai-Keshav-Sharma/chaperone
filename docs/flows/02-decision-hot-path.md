@@ -14,7 +14,12 @@ Agent proposes action (tool call)
   → 3. Derived context (budgets/velocity computed from ledger at the boundary, then ledgered)
   → 4. Engine evaluation (Cedar): determining rules →
        BLOCK-rule → BLOCK | else ESCALATE-rule → ESCALATE | else ALLOW-rule → ALLOW
-       | else BLOCK (DEFAULT_DENY). Eval error → BLOCK (EVAL_ERROR). No policy → BLOCK (NO_POLICY)
+       | else BLOCK (DEFAULT_DENY). Eval error → BLOCK (EVAL_ERROR).
+       Tool governed by no active policy → ungoverned handling (deployment choice,
+       NEVER a failure fallback):
+         ungoverned_default: block (default; warden serve) → BLOCK (NO_POLICY)
+         ungoverned_default: allow (local quickstart)  → ALLOW (UNGOVERNED_ALLOW,
+         loudly ledgered; dashboard + shadow stats push toward policy coverage)
   → 5. SYNCHRONOUS ledger append (before any response) → seq + entry_hash
   → 6. Respond {decision, reason_code, determining_rule_ids, policy_id/version/hash, entry refs, trace}
   → 7. Interceptor acts: ALLOW → forward/permit | BLOCK → structured denial | ESCALATE → pending approval
@@ -31,6 +36,8 @@ Agent proposes action (tool call)
    Engine never reads wall clock / randomness. Same request + policy → same verdict, forever.
 5. Shadow mode (explicit opt-in): same evaluation + ledger as WOULD_*; interceptor always proceeds.
 6. Latency budget: engine <10ms P95, endpoint <50ms P95, hook binary startup ~1ms.
+7. Trace redaction: decision_trace contains only rule ids, match booleans, and operand
+   paths — NEVER raw parameter values. The ledger stores params_hash only (never secrets).
 
 ## Tooling decisions
 

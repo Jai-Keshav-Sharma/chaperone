@@ -1,0 +1,71 @@
+# Review Findings — Resolution Log
+
+Status: RESOLVED. Date: 2026-08-23. Item-by-item verdict on review-findings.md.
+
+## Verdict summary
+
+The review is high quality. Of its findings: all 5 BUGs valid and fixed; AARM
+correction valid and adopted as a launch requirement; 2 of its external claims were
+WRONG (corrected below with verification); all PERF/ADOPT items adopted.
+
+## External claims — verification results (my own checks, same day)
+
+| Claim | Verification |
+|---|---|
+| MCP 2026-07-28 / EMA / MRTR | ✅ Confirmed real (did not re-verify every detail; already sourced in vault) |
+| Rekor v2 GA | ✅ Consistent with earlier research |
+| Cedar 4.x + Cedar Analysis | ✅ Consistent with earlier research |
+| AARM = Vanta-authored, CSA-donated, arXiv 2602.09433 | ✅ CONFIRMED (CSA WG page, Vanta donation post Apr 30 2026, arXiv abstract) |
+| `warden-cli` taken on crates.io | ✅ CONFIRMED (v0.1.1, another coding-agent tool) |
+| "bare `warden` appears unclaimed" | ❌ WRONG — `warden` EXISTS on crates.io (v0.0.1, squatted). npm `warden` exists too. GitHub org `warden` is FREE. Action: crate name must be `warden-guard` or similar; claim the GitHub org; binary stays `warden`. |
+| "EU AI Act high-risk deadline landed Aug 2026" | ❌ WRONG — Annex III high-risk was DEFERRED to Dec 2, 2027 by the Digital Omnibus. Art. 50 transparency is what's in force (Aug 2, 2026). competitive-positioning.md uses the corrected timeline. |
+
+## BUG resolutions
+
+| ID | Finding | Resolution | Where |
+|---|---|---|---|
+| BUG-1 | Hook "ask" breaks evidence chain | Hook-local approval: the hook resolves the escalation itself (console prompt → resolve entry → re-submit → allow). Host never approves anything Warden can't see | flows/03, flows/05, threat-model |
+| BUG-2 | Fast-path null params_hash → bait-and-switch hole | params_hash ALWAYS = sha256(raw params bytes), never null; ESCALATE always deserializes (inbox visibility) and binds retries via canonical semantic hash — exact binding without false mismatches on legit retries | flows/06, flows/02, data-model |
+| BUG-3 | NO_POLICY→BLOCK wrecks the demo | Starter pack gains explicit benign-namespace allow rules; new deployment config `ungoverned_default: block\|allow` (serve defaults block; init sets allow) with UNGOVERNED_ALLOW loudly ledgered. Fail-closed on FAILURE untouched — this is policy choice, not fallback | flows/09, flows/02, policy-ir |
+| BUG-4 | Hook envelope wrong; 4-value outcome set | Contract corrected to hookSpecificOutput nesting; Warden emits allow/deny only; defer documented as unused; bypass-mode e2e verification added as build-time requirement (upstream interplay in flux: #39344, #36059) | flows/05, threat-model |
+| BUG-5 | threat-model.md missing | Created, including the hook = seatbelt-not-jail honesty and the gateway = real chokepoint line | docs/threat-model.md |
+
+## AARM — adopted
+
+- Expansion corrected: Autonomous Action Runtime Management, Vanta-authored
+  (arXiv:2602.09433, Feb 2026), donated to CSA (Apr 2026).
+- Promoted from optional to LAUNCH REQUIREMENT with the positioning line
+  "AARM-conformant, and the only implementation whose conformance and decisions are
+  cryptographically verifiable."
+
+## Competitive reality check — adopted
+
+- OPA/Cerbos/Oso table added (the PDP cohort question).
+- Timing catalysts corrected (Art. 50 in force Aug 2026; Annex III Dec 2027; FINRA 2026).
+
+## PERF — all adopted
+
+| ID | Fix | Where |
+|---|---|---|
+| PERF-1 | derived_counters table (materialized budgets, updated in the append transaction, rebuildable from chain) | data-model |
+| PERF-2 | tenant_id nullable slot on ledger + identity tables now | data-model |
+| PERF-3 | Capacity metrics/alarms; archive-and-anchor retention designed pre-production; trace redaction guarantee | data-model, flows/02 |
+| PERF-4 | ureq for the hook path (blocking, no tokio init) | tech-stack, flows/05 |
+| PERF-5 | sqlx only (SQLite + Postgres), no rusqlite — one storage code path | tech-stack, data-model |
+
+## ADOPT — all adopted
+
+| ID | Fix | Where |
+|---|---|---|
+| ADOPT-1 | Name reality: BOTH `warden` and `warden-cli` taken on crates.io (verified). Binary `warden`; crate `warden-guard` (candidate); GitHub org `warden` available — claim pre-launch | tech-stack |
+| ADOPT-2 | Browser demo via wasm32-compiled pure engine | tech-stack, goals |
+| ADOPT-3 | Windows first-class: CI OS matrix + winget/scoop | repo-layout, goals |
+| ADOPT-4 | warden-policy-test GitHub Action as launch asset | goals |
+| ADOPT-5 | Label provenance {labeler, source, date}, versioned submission format, Cohen's κ cited in paper | flows/10, goals |
+
+## Small stuff — adopted
+
+- Cross-policy conflict lint (ERROR_CROSS_POLICY_CONFLICT) → policy-ir.
+- MRTR real-client-library testing → flows/06 (build-time verification; design unchanged).
+- leptess maintenance check + fallback (rusty-tesseract / Tesseract CLI) → flows/01.
+- Paper venue with artifact evaluation (AE badges) → goals.

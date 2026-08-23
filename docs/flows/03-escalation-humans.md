@@ -10,7 +10,8 @@ Engine matches an escalate rule
        + appends DECISION ledger entry (linked to escalation_id) + responds
        {decision=ESCALATE, escalation_id, expires_at}
   → 2. Surfaced per interceptor:
-       Hook:   interactive → "ask" | non-interactive → deny with WARDEN_ESCALATED message
+       Hook:   hook-local approval flow (below) | non-interactive → deny with
+               WARDEN_ESCALATED message
        Gateway: MRTR resultType "input_required" (protocol-native pause; polls, bounded ≤120s)
        Shim:   structured tool error (never blocks the stdio pipe)
   → 3. Human resolves via inbox (dashboard) or CLI:
@@ -25,6 +26,25 @@ Engine matches an escalate rule
   → 5. Evidence: ≥2 (usually 3) chained ledger entries = complete human-oversight story
        (EU AI Act Art. 14)
 ```
+
+## Hook-local approval (evidence-chain fix — review BUG-1)
+
+Interactive hook surfaces must NOT hand approval to the host UI. A host-approved
+"ask" lets the host run the tool WITHOUT telling Warden — the ledger would show
+ESCALATE → EXPIRED while the action actually executed, breaking invariant 4 and the
+EU AI Act Art. 14 evidence story.
+
+Instead, on ESCALATE the hook resolves the escalation ITSELF:
+1. Open the user's console directly (Windows CONIN$/CONOUT$; Unix /dev/tty). The hook's
+   stdin carries the event JSON, so a real TTY must be opened explicitly.
+2. Prompt: what / why / expires-at + [A]pprove / [D]eny.
+3. Approve → POST /resolve approve → ESCALATION_RESOLVED(APPROVED) entry →
+   re-submit decision with escalation_id → ALLOW (ESCALATION_APPROVED) → return allow.
+4. Deny → resolve deny → ESCALATION_RESOLVED(DENIED) entry → return deny.
+5. No console available (non-interactive) → deny + WARDEN_ESCALATED message (fallback).
+
+Result: DECISION(ESCALATE) → RESOLVED(APPROVED) → DECISION(ALLOW, ESCALATION_APPROVED).
+One approval surface, chain intact.
 
 ## Invariants
 

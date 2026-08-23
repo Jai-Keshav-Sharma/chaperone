@@ -50,7 +50,9 @@ warden/                              # Jai-Keshav-Sharma/warden (private until l
 ├── paper/                           # experiments/ (run_all, plotters figures) + results/
 ├── docs/                            # the locked specs we've written (flows, data-model, policy-ir, goals…)
 ├── scripts/                         # demo.sh (the Flow 9 script), release scripts
-├── .github/workflows/ci.yml         # lint + type + unit (sqlite) → integration → nightly bench
+├── .github/workflows/ci.yml         # lint + type + unit (sqlite) → integration → nightly bench;
+│                                    #   OS matrix: windows-latest + ubuntu-latest (Windows is
+│                                    #   first-class — it's the dev platform and the demo surface)
 └── .gitignore                       # target/, node_modules/, *.db, results/
 ```
 

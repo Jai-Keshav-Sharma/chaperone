@@ -29,11 +29,14 @@ verifiable, Apache-2.0."
 1. `tools/call` hits the gateway. Headers identify tool; body carries params.
 2. FAST-PATH DECISION (precomputed at policy load time): the engine indexes, per tool,
    whether any active rule references params (`params_required` map). At request time:
-   - `needs_params(tool) == false` → skip body deserialization entirely; evaluate on
-     (agent, tool, context); ledger entry carries `params_hash: null` (params immaterial —
-     documented, deterministic). Payload is streamed through byte-perfect regardless
-     (the proxy always forwards the raw bytes; we skip only JSON deserialization).
-   - `needs_params(tool) == true` → parse body once, extract params, compute params_hash.
+   - params_hash is ALWAYS computed as sha256 of the raw params bytes as received —
+     NEVER null. Hashing raw bytes is not deserialization; the fast path stays fast.
+   - `needs_params(tool) == false` → skip body DESERIALIZATION entirely; evaluate on
+     (agent, tool, context). The payload streams through byte-perfect regardless
+     (the proxy always forwards raw bytes; we skip only JSON parsing into objects).
+   - `needs_params(tool) == true` → deserialize once, extract operand values.
+   - ESCALATE ALWAYS deserializes the body: the approver inbox needs proposed_params,
+     and the escalation stores the canonical semantic hash for retry binding.
    - Property: the parse decision is DERIVED from the active rules, so it can never
      disagree with what the policy needs. Adding a parameter rule flips the index
      automatically at activation.
@@ -45,6 +48,17 @@ verifiable, Apache-2.0."
      denied/expired/timeout → structured JSON-RPC error, ticket lives on for the retry path
 4. Non-tools/call methods (initialize, tools/list, resources) pass through but are
    policy-addressable via context.mcp_method (lockdown policies possible).
+
+## Bait-and-switch binding (review BUG-2 — resolved)
+
+Old design: a no-param-condition escalate rule → `params_hash: null` → approval bound
+to nothing → ANY params pass on retry. Resolved:
+
+- Every decision carries params_hash = sha256(raw params bytes). Never null.
+- Every ESCALATE deserializes the body (inbox visibility) and stores the canonical
+  semantic hash for binding.
+- Retry binding compares canonical hashes: semantically different params are always
+  caught; key-ordering differences on legitimate identical retries do not false-mismatch.
 
 ## MRTR clarification (why ESCALATE is seamless)
 

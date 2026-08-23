@@ -55,6 +55,14 @@ Ungated pass-through; naive regex guardrail. Honest comparisons, not perfection 
 - E5 Tamper evidence — mutate every field of random entries + truncate/reorder; verify locates every corruption
 - E6 Determinism — full-run replay: 100% byte-identical decisions across engines and repeats
 
+## Label provenance (review ADOPT-5 — honest labels, not just honest numbers)
+
+- Every gold_decision carries {labeler, source, date} in the scenario file.
+- Versioned scenario-submission format (JSONL + docs) for external contributions.
+- Inter-annotator agreement (Cohen's κ) on gold labels is measured and cited in the paper.
+- Self-authored corpus alone = conformance test, not efficacy benchmark. External
+  contributions are what make benchmark-as-standard compound.
+
 ## Reproducibility
 
 Seeds pinned (--seed 1337); N=3 repetitions; CI asserts two runs produce byte-identical

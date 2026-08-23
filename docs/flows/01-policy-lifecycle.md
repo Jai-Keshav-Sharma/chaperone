@@ -41,7 +41,7 @@ decides, per deployment and per policy:
 | Tier | Tool | Notes |
 |---|---|---|
 | 1. Text layer | pdf-extract native text | Always tried first; free, local |
-| 2. Local OCR | `leptess` (Tesseract) | 100+ languages incl. Indic; offline |
+| 2. Local OCR | `leptess` (Tesseract) | 100+ languages incl. Indic; offline. Verify maintenance status at build time; fallback `rusty-tesseract` or shelling to the Tesseract CLI (review: leptess looks stale) |
 | 3. Cloud document AI | Mistral OCR / Azure Document Intelligence / AWS Textract | User brings own API key; best for tables/forms/handwriting; optional, never default |
 
 ## LLM compiler (CompilerClient trait)

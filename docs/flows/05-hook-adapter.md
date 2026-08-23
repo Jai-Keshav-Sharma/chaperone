@@ -22,7 +22,12 @@ the model gets no vote.
 ## Contract
 
 - In (stdin JSON): `{"tool_name": "Bash", "tool_input": {"command": "rm -rf /"}, "session_id": ...}`
-- Out (stdout JSON): `{"permissionDecision": "allow" | "deny" | "ask", "reason": "..."}`
+- Out (stdout JSON): decision MUST be nested under hookSpecificOutput (top-level fields
+  are ignored for PreToolUse — review BUG-4):
+  `{"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "allow"|"deny"|"ask"|"defer", "permissionDecisionReason": "..."}}`
+- The host outcome set has FOUR values (allow/deny/ask/defer); Warden emits only
+  allow and deny — `ask` would hand approval to the host UI and break the evidence
+  chain (Flow 3 hook-local approval instead); `defer` is for chained handlers and unused.
 
 ## Steps
 
@@ -39,7 +44,7 @@ the model gets no vote.
 |---|---|---|
 | ALLOW | allow (silent) | Zero friction, ~40–75ms total overhead |
 | BLOCK | deny + "Warden BLOCK: pol r-id (ledger #14921)" | Refused; agent sees reason + ledger receipt |
-| ESCALATE | ask (interactive) / deny + WARDEN_ESCALATED message (non-interactive) | Approval prompt from Flow 3, native in host UI |
+| ESCALATE | Hook-local approval: interactive console prompt inside the hook → approve → resolve entry → re-submit → ALLOW (ESCALATION_APPROVED) → return allow | Approval happens INSIDE the hook so the RESOLVED entry exists before the host runs anything (Flow 3 invariant 4) |
 | Gate unreachable | deny (FAIL_CLOSED_GATE_UNREACHABLE) | Fail-closed: no gate, no action |
 | Shadow mode | allow + ledgered WOULD_* | Invisible observation |
 
@@ -60,7 +65,8 @@ the model gets no vote.
 |---|---|
 | Contract parsing | serde_json (strict); Claude Code PreToolUse + Cursor beforeShellExecution/beforeMCPExecution |
 | Normalization | Own mapping module — single source of truth for tool namespaces, exhaustively unit-tested |
-| HTTP | reqwest, 1000ms timeout, fail-closed synthesis on any error |
+| HTTP | `ureq` (blocking, no async runtime — a one-shot hook process doesn't need tokio; faster cold start than reqwest+tokio init) + 1000ms timeout + fail-closed synthesis on any error |
+| Bypass-mode verification | e2e test MUST cover `--dangerously-skip-permissions`: hook deny honored in bypass mode. Upstream hooks/permissions interplay is in flux (e.g. issues #39344, #36059) — verify against the installed host version before the launch demo leans on it |
 | Binary | Same `warden` binary (clap subcommand) — no interpreter, ~1ms cold start |
 | init | Careful JSON merge; writes starter pack; prints 3-command demo; never writes outside target project dir |
 | Idempotency | request_id UUIDv4 at hook boundary |
