@@ -31,6 +31,16 @@ Status: RESOLVED (pass 1 + pass 2). Date: 2026-08-23.
 | ADOPT-10 diff-aware CI | ✅ VALID | goals.md (warden-policy-test = diff-aware) |
 | ADOPT-11 31 hook events | ✅ VALID (roadmap note) | flows/05 roadmap row |
 
+### Third pass — cross-doc drift (resolved same day)
+
+- flows/03 MRTR references (lines 15, 60, 74) updated to retry-native per flows/06:
+  client retries with signed requestState; poll-and-hold ≤120s = fallback only.
+  The tooling row (the one an implementer codes from) no longer says "auto re-submit".
+- adoption-integration.md deployment-modes table gained Daemon lifecycle (autostart +
+  warden doctor, SPEC-4) and Transport security (TLS, SEC-2) rows.
+- aarm-mapping.md now cites the verified organizational conditions exactly
+  (≥5 active production customers running ≥3 months + benchmarking commitment).
+
 ---
 
 ## Verdict summary

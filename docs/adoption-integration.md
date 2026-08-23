@@ -30,6 +30,8 @@ AFTER:   Agent ──→ [WARDEN] ──→ Tool
 | Interceptor target | localhost | `WARDEN_URL` env |
 | Policy management | Local (`warden policy compile ...`) | Central; changes propagate <5ms (pub/sub invalidation) |
 | Approvals | Terminal (host prompt or `warden approve <id>`) | Dashboard inbox / `warden approve` |
+| Daemon lifecycle | `warden init` installs user-level autostart (Windows scheduled task / launchd / systemd user unit); `warden doctor` validates wiring, reachability, ledger health, policy currency | Managed process; same `warden doctor` for diagnostics |
+| Transport security | Localhost loopback only | TLS: native rustls OR documented reverse-proxy termination — bearer keys never traverse plaintext (SEC-2) |
 | Buyer | Individual engineer (free, OSS) | DevSecOps / CISO (enterprise tier) |
 
 Same binary powers both. Local adoption → team formalization is the bottom-up wedge.

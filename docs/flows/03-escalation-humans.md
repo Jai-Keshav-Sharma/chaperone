@@ -12,7 +12,8 @@ Engine matches an escalate rule
   → 2. Surfaced per interceptor:
        Hook:   hook-local approval flow (below) | non-interactive → deny with
                WARDEN_ESCALATED message
-       Gateway: MRTR resultType "input_required" (protocol-native pause; polls, bounded ≤120s)
+       Gateway: MRTR retry-native (signed requestState; client retries; poll-and-hold
+                fallback ≤120s) — see flows/06
        Shim:   structured tool error (never blocks the stdio pipe)
   → 3. Human resolves via inbox (dashboard) or CLI:
        approve/deny + note → row updated (resolver, resolved_at)
@@ -57,7 +58,8 @@ One approval surface, chain intact — with every clock bounded.
 ## Invariants
 
 1. Poll-based, never blocking: decision API returns immediately; no held connections
-   (except gateway MRTR, bounded ≤ min(expiry, 120s)).
+   (the gateway's MRTR path is retry-native — signed requestState, client retries;
+   poll-and-hold ≤120s exists only as a fallback for clients that mishandle MRTR).
 2. Approvals are single-use and bind to exact params (params_binding_hash — the
    canonical semantic hash) — bait-and-switch impossible. Any retry with different
    params → ESCALATION_PARAMS_MISMATCH block.
@@ -71,7 +73,7 @@ One approval surface, chain intact — with every clock bounded.
 | Storage | `escalations` table (relational, sqlx): escalation_id PK, request_id, agent_id FK, policy_id+version, rule_ids JSON, tool, proposed_params JSON (full params for approver visibility — ledger keeps only the hash), params_binding_hash (canonical semantic hash, retry binding only — NOT the ledger's raw-bytes params_hash), status enum, resolver, resolution_note, created_at, expires_at, resolved_at, decision_entry_seq FK, resolution_entry_seq FK. Index (status, expires_at) for the sweeper |
 | Sweeper | tokio background task, 30s interval, `expire_due()` → EXPIRED ledger entries; manual `POST /v1/escalations/expire` for deterministic tests |
 | Inbox API | axum routes: `GET /v1/escalations?status=pending`, `GET /v1/escalations/{id}`, `POST /v1/escalations/{id}/resolve {resolution, resolver, note}` — 409 if not pending |
-| Gateway MRTR | Poll every 2s, bounded ≤ min(expiry, 120s); approved → auto re-submit with escalation_id + forward; denied/expired → JSON-RPC error |
+| Gateway MRTR | Retry-native (flows/06): InputRequiredResult + signed requestState; the CLIENT retries the original call; gateway verifies HMAC → escalation approved/unconsumed/params-bound → forwards. Poll-and-hold (≤120s) = fallback ONLY for clients that mishandle MRTR |
 | CLI | `warden approve <id>`, `warden deny <id>`, `warden escalations list` |
 | Notifications | Generic signed webhooks (HTTP POST, HMAC-signed payload) on escalation events; Slack/Teams = webhook-format adapters over the same mechanism |
 | Dashboard | Inbox UI: pending list, decision context (what/why/agent/derived context), expiry countdown, approve/deny + note. Team-mode auth: session token printed by `warden serve` at startup (SSO = paid tier later) — an approval inbox is NEVER unauthenticated (review-2 SEC-3) |

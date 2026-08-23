@@ -9,6 +9,11 @@ verified against the published spec + conformance protocol.
 - Claiming Conformant requires: production operation with real workloads, an evidence
   package, TWG review (~14 days), community engagement, AND a recognized security
   certification (SOC 2 Type II / ISO 27001 / FedRAMP).
+- Verified organizational conditions (conformance protocol): active WG engagement;
+  a real production deployment serving customers — **≥5 active production customers
+  running ≥3 months**; plus an ongoing benchmarking commitment. This makes the
+  "post-production milestone" concrete: Core conformance is realistically a
+  post-revenue objective, not a launch-week box to tick.
 - "Aligned" = self-declared builder status (entry point; no verified claim).
 
 ## Launch claim
