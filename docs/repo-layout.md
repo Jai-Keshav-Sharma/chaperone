@@ -52,7 +52,11 @@ warden/                              # Jai-Keshav-Sharma/warden (private until l
 ├── scripts/                         # demo.sh (the Flow 9 script), release scripts
 ├── .github/workflows/ci.yml         # lint + type + unit (sqlite) → integration → nightly bench;
 │                                    #   OS matrix: windows-latest + ubuntu-latest (Windows is
-│                                    #   first-class — it's the dev platform and the demo surface)
+│                                    #   first-class — it's the dev platform and the demo surface);
+│                                    #   cargo-deny + cargo-audit in CI; release artifacts
+│                                    #   cosign/Sigstore-signed + SBOM attached (review-2 SEC-4);
+│                                    #   cargo-fuzz targets for hook stdin parser, gateway body
+│                                    #   parsing, IR validator, canonical.rs (review-2 SEC-5)
 └── .gitignore                       # target/, node_modules/, *.db, results/
 ```
 

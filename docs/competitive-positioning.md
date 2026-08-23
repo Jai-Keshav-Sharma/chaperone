@@ -10,16 +10,25 @@ The answer:
 | Capability | OPA | Cerbos | Oso | **Warden** |
 |---|---|---|---|---|
 | Policy decision engine | Yes (Rego, general-purpose) | Yes (CEL over YAML) | Yes (Polar) | Yes (IR → Cedar, formally verified) |
-| Built for AGENTS (tool-call interception) | No — you wire it yourself | Partial — markets agent features (kill switch, MCP tool control) | Partial | **Native: hooks, MCP gateway, shim, framework middleware — four seams** |
+| Built for AGENTS (tool-call interception) | No — you wire it yourself | Strong — agentgateway + Synapse over Envoy ext_authz: argument-aware ABAC, MCP `initialize`-gating, task-scoped kill switch (Jun–Jul 2026) | Partial | **Native: hooks, MCP gateway, shim, framework middleware — four seams** |
 | NL policy compiler with human trust loop (diff/test/replay) | No | No | No | **Yes** |
-| Tamper-evident ledger (hash chain + signed Merkle checkpoints + Rekor/TSA anchoring) | No (logs to your stack) | No | No | **Yes — auditor-verifiable offline** |
+| Tamper-evident ledger (hash chain + signed Merkle checkpoints + Rekor/TSA anchoring) | No (logs to your stack) | No (plain Hub decision logs) | No | **Yes — auditor-verifiable offline** |
 | ESCALATE → human approval lifecycle (inbox, expiry, params binding) | No | No | No | **Yes** |
 | Deterministic replay of historical decisions | Possible with work | No | No | **Yes — byte-for-byte replay is a shipped command** |
 | Open benchmark for pre-action authorization | No | No | No | **Yes — the metric class Warden defines** |
 
-One-liner: "OPA/Cerbos are policy engines you must build an agent product around;
-Warden IS the agent product — seams, ledger, approval inbox, benchmark — with a
-policy engine inside."
+One-liner (updated for Cerbos's real 2026 posture): "Cerbos gives you argument-aware
+authorization if you assemble agentgateway + Synapse + Envoy around it; Warden is the
+agent product already assembled — hook seam, signed-requestState MRTR gateway, ledger
+with anchoring, params-bound HITL inbox, open benchmark — with the policy engine inside."
+
+## Launch narrative anchor (review-2 COMP-2, verified)
+
+The OpenAI–Hugging Face incident (Jul 2026): the safety layer was deliberately switched
+off and post-hoc detection was the only remaining control — Cerbos's own analysis argues
+runtime authorization "should still have been standing when the safety layer was turned
+off." That IS Warden's thesis in news form. Cite it in the README/launch post as the
+motivation case alongside EU AI Act Art. 50 timing.
 
 ## The funded platform cohort (research, Aug 2026)
 

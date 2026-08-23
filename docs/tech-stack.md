@@ -15,7 +15,7 @@ Decision date: 2026-08-23. Owner: Jai Keshav Sharma.
 | Escalation / HITL | In-core: approval inbox API + auto-deny sweeper + params-hash binding |
 | Cache / policy currency | In-process -> Redis (`redis` crate) -> DB, with pub/sub invalidation |
 | Dashboard | TypeScript + React (Vite), dark terminal aesthetic |
-| CLI | `clap` — `warden init | hook | serve | gateway | shim | policy compile/lint/test/activate | ledger verify/prove/export | bench` |
+| CLI | `clap` — `warden init | hook | serve | gateway | shim | doctor | policy compile/lint/test/activate | ledger verify/prove/export | bench` |
 | Plugins (future) | WASM components via `wasmtime` (language-agnostic, sandboxed) |
 | Browser demo | warden-core's engine is pure/I/O-free → compiles to `wasm32` — landing-page interactive demo ("type a rule, watch the decision + ledger receipt render") |
 | ML (future) | Train in Python -> export ONNX -> run in Rust via `ort` (ONNX Runtime); zero ML in the decision path, by design |

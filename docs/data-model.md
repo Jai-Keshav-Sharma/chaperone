@@ -37,6 +37,8 @@ CREATE TABLE agent_api_keys (
     agent_id    VARCHAR(64) REFERENCES agent_identities(agent_id),  -- NULL = admin key
     is_admin    BOOLEAN NOT NULL DEFAULT FALSE,
     created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    last_used_at TIMESTAMP,                        -- key hygiene + rotation audits (review-2 DATA-1)
+    expires_at  TIMESTAMP,                         -- optional key expiry
     revoked_at  TIMESTAMP
 );
 ```
@@ -48,6 +50,7 @@ CREATE TABLE policies (
     policy_id      VARCHAR(64) PRIMARY KEY,
     name           VARCHAR(128) NOT NULL,
     active_version INTEGER,                        -- denormalized convenience
+    tenant_id      VARCHAR(64),                    -- nullable, unused in logic; fleet tenancy insurance (review-2 DATA-2)
     created_at     TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 ```
@@ -115,6 +118,7 @@ CREATE TABLE ledger_checkpoints (
     tree_size       INTEGER NOT NULL,              -- entries covered (0..tree_size-1)
     root_hash       VARCHAR(64) NOT NULL,
     checkpoint_text TEXT NOT NULL,                 -- C2SP checkpoint body
+    key_id          VARCHAR(64),                   -- signing key identifier (rotation; review-2 SEC-1)
     signature       TEXT,                          -- Ed25519 base64; NULL in unsigned dev mode
     anchored_rekor  TEXT,                          -- Rekor v2 receipt JSON, NULL if not anchored
     anchored_tsa    TEXT,                          -- RFC 3161 token, NULL if not anchored

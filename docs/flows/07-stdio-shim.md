@@ -38,7 +38,7 @@ Same decisions, same ledger, different wiring.
 
 | Concern | Choice |
 |---|---|
-| Process wrapper | std::process::Command — spawn child, bridge stdio |
+| Process wrapper | std::process::Command — spawn child, bridge stdio. WINDOWS (review-2 ADOPT-7): `npx` is `npx.cmd` (cmd-shim handling required); no SIGTERM — clean teardown needs job-object kill; test + document before "Windows first-class" is claimed |
 | MCP transport | Official `mcp` SDK stdio transport |
 | Decision mapping | Shared mapping module as hook/gateway (one code path) |
 | Escalation | Structured tool error + Flow 3 retry path — never block the pipe |

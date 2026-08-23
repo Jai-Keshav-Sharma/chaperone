@@ -40,6 +40,10 @@ Consequences, stated honestly:
   silently overrides permissions.deny; #36059: hook "allow" no longer overrides ask
   rules). Build-time requirement: e2e test in `--dangerously-skip-permissions` mode
   against the installed host version before the launch demo leans on it.
+- `defer` is NOT adopted: it has active severe upstream bugs (synthetic
+  `[Tool result missing]` fed to the model, subagent breakage, race-dependent behavior).
+  Matcher grammar is pinned to the documented canonical form (`mcp__.*`) with a CI
+  assertion against the pinned host version (review-2 SPEC-3).
 
 ## Data redaction guarantee
 
@@ -47,7 +51,10 @@ Consequences, stated honestly:
 - decision_trace contains rule ids, match booleans, and operand paths — NEVER raw
   parameter values. Redaction is a spec-level guarantee, not a reviewer's request.
 - Escalations store proposed_params (the approver must see what they approve); this is
-  the only place raw params persist, with its own retention policy.
+  the only place raw params persist, with its own retention policy (purge resolved
+  escalations' params after N days, default 30 — review-2 SEC-6).
+- Webhook HMAC secret rotation: dual-secret overlap window (new secret accepted,
+  old retired after one rotation period) — same knob, one procedure.
 
 ## Escalation-key ladder (review BUG-1/2 closure)
 

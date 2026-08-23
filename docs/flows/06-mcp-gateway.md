@@ -43,9 +43,9 @@ verifiable, Apache-2.0."
 3. Verdict mapping:
    - ALLOW → forward to upstream, stream response back untouched
    - BLOCK → JSON-RPC error -32050 with structured reason {policy_id, rule_ids, entry_seq}
-   - ESCALATE → MRTR input_required; gateway polls escalation every 2s, bounded
-     ≤ min(expiry, 120s); approved → complete the ORIGINAL call (agent never re-submits);
-     denied/expired/timeout → structured JSON-RPC error, ticket lives on for the retry path
+   - ESCALATE → MRTR InputRequiredResult (resultType: "input_required") with a SIGNED
+     requestState (below) — the protocol-native retry pattern. Poll-and-hold (≤120s) is
+     kept ONLY as a fallback for clients that mishandle MRTR.
 4. Non-tools/call methods (initialize, tools/list, resources) pass through but are
    policy-addressable via context.mcp_method (lockdown policies possible).
 
@@ -60,13 +60,40 @@ to nothing → ANY params pass on retry. Resolved:
 - Retry binding compares canonical hashes: semantically different params are always
   caught; key-ordering differences on legitimate identical retries do not false-mismatch.
 
-## MRTR clarification (why ESCALATE is seamless)
+## MRTR — retry-native ESCALATE with signed requestState (review-2 SPEC-2)
+
+The 2026-07-28 spec's native MRTR pattern (verified against the published spec): the
+server returns InputRequiredResult; **the client retries the original call** carrying
+`inputResponses` + the exact echoed `requestState`. The spec REQUIRES servers to treat
+`requestState` as attacker-controlled and to integrity-protect it (HMAC/AEAD) whenever
+it influences authorization, with the authenticated principal + short TTL + originating-
+request digest inside the protected payload. Holding the request open and polling is NOT
+the native pattern.
+
+Warden's primary path (all ingredients already exist — hmac crate, escalation_id, TTL,
+params_binding_hash):
+
+```
+requestState = HMAC(secret, escalation_id ‖ expires_at ‖ params_binding_hash ‖ agent_id)
+```
+
+1. ESCALATE → return InputRequiredResult with signed requestState. The escalation ticket
+   is created and ledgered as before; the human approves via the inbox (Flow 3).
+2. Client retries the identical call with requestState → gateway verifies HMAC →
+   validates escalation approved · unconsumed · params_binding_hash equality → forwards.
+   (Single-use is enforced server-side via the consumed flag — exactly as the spec's
+   one-time-redemption warning requires.)
+3. Denied/expired/tampered state → structured JSON-RPC error; ticket lives on for the
+   retry path.
+
+Poll-and-hold (≤ min(expiry, 120s)) remains as a documented FALLBACK for clients that
+mishandle MRTR — primary path is retry-native. This extends the bait-and-switch defense
+into the protocol layer natively and eliminates the held-connection problem class.
 
 MRTR is the TRANSPORT for HITL, not the HITL itself:
 - HITL = Flow 3 (escalation ticket, inbox, human approves, expiry).
-- MRTR = MCP's native "pause a request and wait for input" mechanism.
-- Gateway = the glue: creates escalation, suspends call via input_required, polls inbox,
-  completes the original call on approval. The agent just sees a tool that took ~40s.
+- MRTR = MCP's native pause-and-retry mechanism.
+- Gateway = the glue: creates escalation, returns signed state, verifies on retry.
 
 ## Tooling
 
@@ -75,7 +102,7 @@ MRTR is the TRANSPORT for HITL, not the HITL itself:
 | MCP framing | Official `mcp` Rust SDK (JSON-RPC 2.0 over streamable HTTP) |
 | Proxy | `axum` reverse proxy + `reqwest` upstream client, bidirectional response streaming |
 | Fast path | Mcp-Method/Mcp-Name routing; `needs_params(policy_set, tool)` from the engine |
-| Escalation | MRTR input_required; poll 2s, bounded ≤ min(expiry, 120s) |
+| Escalation | MRTR retry-native primary: signed requestState (HMAC: escalation_id ‖ expires_at ‖ params_binding_hash ‖ agent_id); client retries → verify → approved/unconsumed/params-bound → forward. Poll-and-hold ≤120s as fallback only |
 | Identity | MCP client identity → agent_id (OAuth subject / CIMD); WARDEN_AGENT_ID override; unknown-agent policy-blockable |
 | OAuth | Transparent passthrough — zero changes to clients or servers |
 | Config | --upstream <url>, --port, WARDEN_URL, agent-id mapping |

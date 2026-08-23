@@ -14,10 +14,22 @@ the model gets no vote.
 
 ```json
 { "hooks": { "PreToolUse": [
-    { "matcher": "Bash|Write|Edit|Read|mcp__*",
+    { "matcher": "Bash|Write|Edit|Read|WebFetch|WebSearch|NotebookEdit|Task|mcp__.*",
       "hooks": [{ "type": "command", "command": "warden hook" }] }
 ]}}
 ```
+
+Matcher coverage is deliberate (review-2 SPEC-3):
+- `mcp__.*` — the documented canonical glob form for MCP tools (bare `mcp__*` works only
+  accidentally via unanchored matching; if host matching semantics change, MCP coverage
+  would silently ungate — a CI assertion validates the installed settings entry against
+  the pinned host version's matcher grammar).
+- WebFetch / WebSearch / NotebookEdit / Task included — network egress and state-changing
+  tools MUST be gated (an unmatched WebFetch is a silent exfiltration primitive).
+- Grep / Glob / TodoWrite deliberately OUTSIDE the matcher: pure-local, high-frequency
+  reads; intercepting them would tax every call ~40–75ms for no risk reduction.
+- Read stays inside deliberately: secret-read blocking (`.env`) needs file-tool
+  visibility, not just Bash-command parsing.
 
 ## Contract
 
@@ -72,6 +84,8 @@ this table == Flow 9's pack description.
 | Normalization | Own mapping module — single source of truth for tool namespaces, exhaustively unit-tested |
 | HTTP | `ureq` (blocking, no async runtime — a one-shot hook process doesn't need tokio; faster cold start than reqwest+tokio init) + 1000ms timeout + fail-closed synthesis on any error |
 | Bypass-mode verification | e2e test MUST cover `--dangerously-skip-permissions`: hook deny honored in bypass mode. Upstream hooks/permissions interplay is in flux (e.g. issues #39344, #36059) — verify against the installed host version before the launch demo leans on it |
+| Windows approval matrix | Hook-local approval (Flow 3) verified across Windows Terminal, VS Code integrated terminal, git-bash, WSL-invoked claude (review-2 ADOPT-6). Headless `-p`/CI → no console → auto-deny with a DISTINCT reason code `DENY_NO_CONSOLE` (evidence trail distinguishes it from a human DENY) |
+| Roadmap | `updatedInput` (host-supported input rewriting paired with allow) = future MODIFY / redact-and-allow enforcement surface (closes AARM R4-MODIFY, see docs/aarm-mapping.md). Host now exposes ~31 hook events (Setup, PermissionRequest, PermissionDenied, PostToolUseFailure, SubagentStart, ConfigChange…) — PreToolUse is not the only seam; PostToolUseFailure pairs naturally with ledger outcome-correlation later |
 | Binary | Same `warden` binary (clap subcommand) — no interpreter, ~1ms cold start |
 | init | Careful JSON merge; writes starter pack; prints 3-command demo; never writes outside target project dir |
 | Idempotency | request_id UUIDv4 at hook boundary |

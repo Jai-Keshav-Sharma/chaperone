@@ -27,8 +27,12 @@ global race is young.
   → approve → retry. The demo IS the pitch.
 - Launch assets: interactive browser demo (wasm-compiled engine — type a rule, watch
   a decision + receipt render, no signup); `warden-policy-test` GitHub Action (the
-  "CI for policies" as a free Action — sticky adoption loop); Windows first-class
-  (winget/scoop, CI OS matrix) — the dev platform is Windows.
+  "CI for policies" as a free Action — diff-aware: lint/test/replay the changed policy
+  against the PR diff, "your SOP change gets tested in CI like code"); Windows
+  first-class (winget/scoop, CI OS matrix) — the dev platform is Windows; installer
+  scripts (`curl … | sh` POSIX + PowerShell one-liner pulling prebuilt binaries);
+  policy-pack registry seeded with 3–4 real packs at launch (fintech refunds, DB-guard,
+  HR/PII, secrets hygiene) — empty registries don't compound.
 - Honest-numbers discipline: publish only what the benchmark measures
   (recall ≥98.5%, false-block ≤1.5%, P95 <50ms, chain verification).
 
@@ -43,14 +47,23 @@ global race is young.
 - India first-mover narrative on the local demand curve (EY / RBI / SEBI / MeitY).
 - Native framework integration: Warden as a first-class, officially documented option
   inside LangGraph (then OpenAI Agents SDK, CrewAI, ADK).
-- **AARM conformance = LAUNCH REQUIREMENT** (not optional). AARM — Autonomous Action
-  Runtime Management — is the Vanta-authored spec (arXiv:2602.09433, Feb 2026) donated
-  to the Cloud Security Alliance (Apr 2026), with a working group, conformance program,
-  and vendors already claiming alignment. Warden's intercept → evaluate → ledgered
-  decision → HITL architecture maps 1:1 onto its requirements (R1–R6). Positioning:
-  "AARM-conformant, and the only implementation whose conformance and decisions are
-  cryptographically verifiable." CSA relationship doubles as the India/enterprise
-  credibility channel.
+- **AARM: claim "Aligned" at launch; target Core conformance post-production.** AARM —
+  Autonomous Action Runtime Management — is the Vanta-authored spec (arXiv:2602.09433,
+  Feb 2026) donated to the Cloud Security Alliance (Apr 2026). Verified against the
+  published spec (aarm.dev/spec v1.0): Core = R1–R6 (MUST); R4 requires FIVE decisions
+  (ALLOW, DENY, MODIFY, STEP_UP, DEFER — we emit three); R2/R3 require intent modeling
+  (we model derived aggregates, not stated intent); full Conformant status requires
+  production deployment + evidence package + ~14-day TWG review + a security
+  certification. Therefore: honest launch claim = **AARM Aligned** (self-declared),
+  with the R1–R6 gap mapping published (docs/aarm-mapping.md) — partial-conformance
+  honesty is itself the differentiator vs checklist-badge vendors. Positioning:
+  "built to AARM Core, and the only implementation whose decisions are
+  cryptographically verifiable." Core conformance = post-production milestone.
+  Also track **OWASP AISVS** (Agentic AI Security Verification Standard) — same
+  control-mapping exercise once the AARM mapping exists.
+- **EMA positioning nuance** (verified): EMA makes the IdP authoritative for *server
+  access* via ID-JAG exchange; it never inspects traffic. State it explicitly:
+  "AuthN/coarse-grant lives in the IdP (EMA); per-call AuthZ + proof lives in Warden."
 
 ### 4. Research (paper + dataset)
 

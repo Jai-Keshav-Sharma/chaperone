@@ -14,7 +14,22 @@ Status: DECIDED. Date: 2026-08-23.
    block; ungoverned allowances are ledgered as UNGOVERNED_ALLOW and surfaced on the
    dashboard/shadow stats — loudly accounted, never silent)
 4. Merges the hook entry into .claude/settings.json (+ Cursor config; merge, never clobber)
-5. Prints the 3-command demo
+5. Installs user-level AUTOSTART for `warden serve` (Windows scheduled task / launchd
+   user agent / systemd user unit) — the gate must survive terminal close and reboot,
+   or the fail-closed envelope turns every call into a deny ("Warden bricked my Claude
+   Code" is the week-one rage-uninstall risk; review-2 SPEC-4)
+6. Prints the 3-command demo
+
+## Daemon lifecycle & warden doctor (review-2 SPEC-4)
+
+- Local mode's biggest footgun is the unowned daemon: terminal closes / reboot → gate
+  unreachable → fail-closed → every tool call denies.
+- Autostart (step 5 above) is the default; `warden init --no-autostart` opts out.
+- Failure UX names the remedy: `Warden: gate unreachable — run 'warden serve' or
+  'warden unhook'`.
+- `warden doctor` validates the whole local chain: hook wiring (settings merge intact,
+  matcher grammar OK), gate reachability, ledger health (chain-verify head), policy
+  currency — prints fix hints. Permanent support-cost reducer + a good demo beat.
 
 ## Demo script
 

@@ -40,6 +40,13 @@ Agent proposes action (tool call)
 6. Latency budget: engine <10ms P95, endpoint <50ms P95, hook binary startup ~1ms.
 7. Trace redaction: decision_trace contains only rule ids, match booleans, and operand
    paths — NEVER raw parameter values. The ledger stores params_hash only (never secrets).
+8. Context-trust invariant (review-2 SPEC-5): context fields that influence verdicts
+   (surface, delegation_depth, and any future intent fields) are computed at the TRUSTED
+   boundary — the hook/gateway derive them; the decision API never accepts them from
+   agent-controlled payloads. In team mode the gateway derives delegation_depth itself;
+   the SDK seam documents that its context is best-effort and not trusted.
+9. TLS for team mode: WARDEN_URL traffic carries bearer keys — native rustls option OR
+   documented reverse-proxy termination. Enterprise asks on day one (review-2 SEC-2).
 
 ## Tooling decisions
 

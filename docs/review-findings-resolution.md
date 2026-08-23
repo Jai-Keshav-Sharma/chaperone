@@ -1,6 +1,37 @@
 # Review Findings — Resolution Log
 
-Status: RESOLVED. Date: 2026-08-23. Item-by-item verdict on review-findings.md.
+Status: RESOLVED (pass 1 + pass 2). Date: 2026-08-23.
+
+## Review pass 2 (review-2-findings.md) — resolutions
+
+| ID | Verdict (my independent verification) | Resolution |
+|---|---|---|
+| SPEC-1 AARM overclaim | ✅ VALID — verified against aarm.dev/spec v1.0: R4 = five decisions (ALLOW/DENY/MODIFY/STEP_UP/DEFER); Core R1–R6 MUST; Conformant requires production deployment + evidence package + ~14d TWG review + security certification | goals.md restated: claim **AARM Aligned** at launch, Core conformance post-production; new docs/aarm-mapping.md (R1–R6 → feature mapping, gaps stated honestly) |
+| SPEC-2 MRTR retry-native | ✅ VALID — verified against MCP 2026-07-28 MRTR spec: client retries with echoed requestState; servers MUST treat as attacker-controlled + integrity-protect (HMAC/AEAD) when it affects authorization | flows/06 primary path = retry-native with `requestState = HMAC(secret, escalation_id ‖ expires_at ‖ params_binding_hash ‖ agent_id)`; poll-and-hold demoted to fallback |
+| SPEC-3 matcher + coverage | ✅ VALID (canonical glob form confirmed; coverage-gap argument sound) | flows/05: `mcp__.*` + CI grammar assertion; WebFetch/WebSearch/NotebookEdit/Task added; Grep/Glob/TodoWrite exclusion documented with latency math; SPEC-3b updatedInput → aarm-mapping MODIFY roadmap |
+| SPEC-4 daemon lifecycle | ✅ VALID (genuine week-one footgun) | flows/09: autostart (scheduled task/launchd/systemd user) + failure UX naming remedy + `warden doctor` verb |
+| SPEC-5 context-trust | ✅ VALID | flows/02 invariant 8: context computed at trusted boundary; API never accepts verdict-influencing context from agent-controlled payloads |
+| COMP-1 Cerbos stale | ✅ VALID — verified Cerbos blog (Jun 10 2026): agentgateway + Synapse, argument-aware ABAC, initialize-gating, kill switch, Hub logs | competitive-positioning.md table + one-liner refreshed against verified reality |
+| COMP-2 incident anchor | ✅ Plausible + useful (Cerbos analysis cited) | Added as launch narrative anchor |
+| COMP-3 AISVS + EMA nuance | ✅ VALID (EMA verified: IdP-authoritative server access, no traffic inspection) | goals.md one-liners |
+| SEC-1 key rotation | ✅ VALID | `key_id` in ledger_checkpoints + rotation procedure + multi-key verify/prove |
+| SEC-2 TLS | ✅ VALID | flows/02 invariant 9: rustls or documented proxy termination |
+| SEC-3 dashboard auth | ✅ VALID | flows/03: session token at startup; SSO paid-tier later |
+| SEC-4 supply chain | ✅ VALID (on-brand) | repo-layout CI: cargo-deny/cargo-audit + cosign-signed releases + SBOM |
+| SEC-5 fuzzing | ✅ VALID | repo-layout: cargo-fuzz targets for boundary parsers |
+| SEC-6 retention/rotation knobs | ✅ VALID | flows/03 + threat-model: proposed_params purge (default 30d), HMAC dual-secret rotation |
+| DATA-1 api-key columns | ✅ VALID (free insurance) | data-model: last_used_at + expires_at |
+| DATA-2 policies.tenant_id | ✅ VALID (consistency) | data-model: added |
+| PERF-6 group commit | ✅ VALID (conditional lever) | scalability-targets step 0.5 |
+| PERF-7 latency math | ✅ VALID | flows/05 matcher coverage note carries the math |
+| ADOPT-6 console matrix | ✅ VALID | flows/03/05: test matrix + DENY_NO_CONSOLE reason code |
+| ADOPT-7 npx.cmd/job object | ✅ VALID (Windows reality) | flows/07 process-wrapper row |
+| ADOPT-8 installer scripts | ✅ VALID | goals.md launch assets |
+| ADOPT-9 seed packs | ✅ VALID | goals.md launch assets (3–4 packs at launch) |
+| ADOPT-10 diff-aware CI | ✅ VALID | goals.md (warden-policy-test = diff-aware) |
+| ADOPT-11 31 hook events | ✅ VALID (roadmap note) | flows/05 roadmap row |
+
+---
 
 ## Verdict summary
 

@@ -33,6 +33,10 @@ Layer 3  External anchoring   (optional, Rekor/TSA)    detects rewrites even by 
   entry hashes, emit C2SP checkpoint (tree size + root hash), Ed25519-signed.
 - Buys: O(log n) inclusion proofs for any entry; consistency proofs between checkpoints;
   verifiable offline with the public key.
+- KEY ROTATION (review-2 SEC-1): every checkpoint carries `key_id`; verify/prove handle
+  multiple historical keys. New key advertised before old retires; old keys remain
+  listed for verification forever. First rotation must not brick offline verification —
+  the envelope is designed for it from day one.
 
 ## Layer 3 — external anchoring (optional, config-driven, best-effort)
 

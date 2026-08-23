@@ -47,7 +47,9 @@ Instead, on ESCALATE the hook resolves the escalation ITSELF:
    ticket message; the escalation REMAINS PENDING. Late approval arrives via the
    CLI/dashboard inbox path, and the params-bound retry path completes it.
    The prompt bound (~30s) and the escalation TTL (900s) are independent clocks —
-   never assumed to coincide.
+   never assumed to coincide. No-console denies carry a DISTINCT reason code
+   `DENY_NO_CONSOLE` so the evidence trail distinguishes them from human DENY
+   (review-2 ADOPT-6).
 
 Result: DECISION(ESCALATE) → RESOLVED(APPROVED) → DECISION(ALLOW, ESCALATION_APPROVED).
 One approval surface, chain intact — with every clock bounded.
@@ -72,8 +74,8 @@ One approval surface, chain intact — with every clock bounded.
 | Gateway MRTR | Poll every 2s, bounded ≤ min(expiry, 120s); approved → auto re-submit with escalation_id + forward; denied/expired → JSON-RPC error |
 | CLI | `warden approve <id>`, `warden deny <id>`, `warden escalations list` |
 | Notifications | Generic signed webhooks (HTTP POST, HMAC-signed payload) on escalation events; Slack/Teams = webhook-format adapters over the same mechanism |
-| Dashboard | Inbox UI: pending list, decision context (what/why/agent/derived context), expiry countdown, approve/deny + note |
-| Config | `WARDEN_ESCALATION_TTL_SECONDS=900`, sweeper interval, webhook URL, webhook secret |
+| Dashboard | Inbox UI: pending list, decision context (what/why/agent/derived context), expiry countdown, approve/deny + note. Team-mode auth: session token printed by `warden serve` at startup (SSO = paid tier later) — an approval inbox is NEVER unauthenticated (review-2 SEC-3) |
+| Config | `WARDEN_ESCALATION_TTL_SECONDS=900`, sweeper interval, webhook URL, webhook secret. Retention: purge resolved escalations' `proposed_params` after N days (default 30). Webhook HMAC rotation via dual-secret overlap window (review-2 SEC-6) |
 | Anti-fatigue | Derived-attribute budgets auto-allow within bounds; `WARN_BROAD_TARGET` lint on wide escalate rules; escalation-rate metric (target <2% of decisions); shadow mode shows would-escalate volume before enforcement |
 
 ### Infrastructure stance — no queue, no external scheduler
