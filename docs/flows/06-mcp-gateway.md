@@ -32,8 +32,11 @@ verifiable, Apache-2.0."
    - params_hash is ALWAYS computed as sha256 of the raw params bytes as received —
      NEVER null. Hashing raw bytes is not deserialization; the fast path stays fast.
    - `needs_params(tool) == false` → skip body DESERIALIZATION entirely; evaluate on
-     (agent, tool, context). The payload streams through byte-perfect regardless
-     (the proxy always forwards raw bytes; we skip only JSON parsing into objects).
+     (agent, tool, context). The REQUEST body is buffered regardless (bounded by
+     max-body-size, fail-closed reject on oversize) because params_hash always hashes
+     the raw bytes; what we skip is only JSON parsing into objects. On ALLOW the
+     buffered bytes are forwarded upstream; the upstream RESPONSE streams back
+     byte-perfect (requests buffered, responses streamed).
    - `needs_params(tool) == true` → deserialize once, extract operand values.
    - ESCALATE ALWAYS deserializes the body: the approver inbox needs proposed_params,
      and the escalation stores the canonical semantic hash for retry binding.

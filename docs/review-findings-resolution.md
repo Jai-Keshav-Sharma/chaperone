@@ -98,6 +98,12 @@ Status: RESOLVED (passes 1–4 + drift fixes). Date: 2026-08-23 through 2026-08-
 | flows/09 demo transcript had literal seqs | Now #N placeholders; CI asserts output SHAPE, never numbers |
 | Resolution-log SPEC-2 row had stale formula | Marked "(SUPERSEDED by pass-4 B2)"; header updated to passes 1–4 |
 
+### PR-review pass (GitHub PR #2, Copilot reviewer) — resolved
+
+| Item | Fix |
+|---|---|
+| flows/06 fast-path claimed "payload streams through byte-perfect" while the body-handling row required buffering | Aligned: governed REQUEST bodies are always buffered (bounded, fail-closed on oversize) because params_hash hashes raw bytes; only deserialization is skipped on the fast path; upstream RESPONSES stream byte-perfect. Same fix applied to the canonical repo and the PR branch |
+
 ---
 
 ## Verdict summary
