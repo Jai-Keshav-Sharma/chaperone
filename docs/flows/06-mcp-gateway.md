@@ -29,8 +29,9 @@ verifiable, Apache-2.0."
 1. `tools/call` hits the gateway. Headers identify tool; body carries params.
 2. FAST-PATH DECISION (precomputed at policy load time): the engine indexes, per tool,
    whether any active rule references params (`params_required` map). At request time:
-   - params_hash is ALWAYS computed as sha256 of the raw params bytes as received —
-     NEVER null. Hashing raw bytes is not deserialization; the fast path stays fast.
+   - params_hash is ALWAYS computed as sha256 of the raw HTTP BODY bytes as received
+     (the gateway preimage — defined in the table below) — NEVER null. Hashing raw
+     bytes is not deserialization; the fast path stays fast.
    - `needs_params(tool) == false` → skip body DESERIALIZATION entirely; evaluate on
      (agent, tool, context). The REQUEST body is buffered regardless (bounded by
      max-body-size, fail-closed reject on oversize) because params_hash always hashes
@@ -57,7 +58,8 @@ verifiable, Apache-2.0."
 Old design: a no-param-condition escalate rule → `params_hash: null` → approval bound
 to nothing → ANY params pass on retry. Resolved:
 
-- Every decision carries params_hash = sha256(raw params bytes). Never null.
+- Every decision carries params_hash = sha256(raw HTTP body bytes as received — the
+  gateway preimage, table below). Never null.
 - Every ESCALATE deserializes the body (inbox visibility) and stores
   `params_binding_hash` = sha256(canonical_json(params)) for retry binding.
 - Retry binding compares canonical hashes: semantically different params are always

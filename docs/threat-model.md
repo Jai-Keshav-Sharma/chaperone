@@ -77,6 +77,7 @@ Consequences, stated honestly:
 - Hook approvals happen inside the hook (hook-local resolution): DECISION(ESCALATE) →
   RESOLVED(APPROVED) → DECISION(ALLOW, ESCALATION_APPROVED). The host UI never
   approves anything Warden can't see.
-- Every decision carries params_hash = sha256(raw params bytes) — never null.
+- Every decision carries params_hash = sha256(raw bytes, per-surface preimage —
+  see flows/06) — never null.
 - ESCALATE always deserializes the body (inbox visibility) and binds retries via
   canonical semantic hash: bait-and-switch is impossible on every path.

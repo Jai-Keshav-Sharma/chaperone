@@ -104,6 +104,12 @@ Status: RESOLVED (passes 1–4 + drift fixes). Date: 2026-08-23 through 2026-08-
 |---|---|
 | flows/06 fast-path claimed "payload streams through byte-perfect" while the body-handling row required buffering | Aligned: governed REQUEST bodies are always buffered (bounded, fail-closed on oversize) because params_hash hashes raw bytes; only deserialization is skipped on the fast path; upstream RESPONSES stream byte-perfect. Same fix applied to the canonical repo and the PR branch |
 
+### PR-review pass 2 (GitHub PR #3, Copilot reviewer) — resolved
+
+| Item | Fix |
+|---|---|
+| flows/06 "raw params bytes" (fast-path + bait-and-switch) ambiguous vs the defined gateway preimage "raw HTTP body bytes" | Aligned: gateway params_hash = sha256(raw HTTP BODY bytes as received, preimage table) in all three flows/06 spots; threat-model generalized with a per-surface pointer to flows/06 |
+
 ---
 
 ## Verdict summary
