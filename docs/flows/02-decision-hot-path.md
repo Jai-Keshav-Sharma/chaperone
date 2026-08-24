@@ -37,13 +37,10 @@ Agent proposes action (tool call)
 4. Determinism: request_time and derived context computed at the boundary, passed in, ledgered.
    Engine never reads wall clock / randomness. Same request + policy → same verdict, forever.
 5. Shadow mode (explicit opt-in): same evaluation + ledger as WOULD_*; interceptor always proceeds.
-6. Latency budget: engine <10ms P95, endpoint <50ms P95, hook binary startup ~1ms.
+6. Latency budget: engine <10ms P95, endpoint <50ms P95, hook binary cold-start
+   TARGET ~1ms (measured in E2 — Windows process spawn is several ms; review-3 N5).
 7. Trace redaction: decision_trace contains only rule ids, match booleans, and operand
    paths — NEVER raw parameter values. The ledger stores params_hash only (never secrets).
-   OPTIONAL (roadmap, review-3 P2-12): synthesized fail-closed blocks (gate unreachable)
-   are inherently unledgered — the hook may spool them to a local JSONL and reconcile
-   them into the chain on next successful contact. Honest caveat: the spool is not
-   chain-grade until reconciled; it narrows the audit gap, it doesn't close it.
 8. Context-trust invariant (review-2 SPEC-5): context fields that influence verdicts
    (surface, delegation_depth, and any future intent fields) are computed at the TRUSTED
    boundary — the hook/gateway derive them; the decision API never accepts them from
@@ -51,6 +48,11 @@ Agent proposes action (tool call)
    the SDK seam documents that its context is best-effort and not trusted.
 9. TLS for team mode: WARDEN_URL traffic carries bearer keys — native rustls option OR
    documented reverse-proxy termination. Enterprise asks on day one (review-2 SEC-2).
+10. Audit-gap narrowing (OPTIONAL, roadmap — review-3 P2-12): synthesized fail-closed
+   blocks (gate unreachable) are inherently unledgered — the hook may spool them to a
+   local JSONL and reconcile them into the chain on next successful contact. Honest
+   caveat: the spool is not chain-grade until reconciled; it narrows the audit gap,
+   it doesn't close it.
 
 ## Tooling decisions
 

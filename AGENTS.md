@@ -107,4 +107,5 @@ in the same commit. The three copies must never diverge.
 - AARM v1.0: Core R1–R6 MUST; R4 = five decisions (we ship three — see aarm-mapping).
 - EU AI Act: Art. 50 in force Aug 2 2026; Annex III deferred to Dec 2 2027.
 - crates.io: `warden` and `warden-cli` both taken; crate name TBD (candidate:
-  `warden-guard`), binary stays `warden`. GitHub org `wardengate` available.
+  `warden-guard`), binary stays `warden`. GitHub org DECISION (pinned, review-3 N6):
+  claim org `warden` (verified FREE) pre-launch; fallback `wardengate`.

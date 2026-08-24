@@ -58,6 +58,18 @@ Status: RESOLVED (pass 1 + pass 2). Date: 2026-08-23.
 | P2-11 demo refund tool | ✅ VALID | flows/09: warden init --demo bundles canned mock MCP server via shim |
 | P2-12 spooling option | ✅ VALID (honest-caveat) | flows/02: optional local JSONL spool + reconcile; not chain-grade until reconciled |
 
+### Review pass 3b (additional findings N1–N6) — resolutions
+
+| ID | Verdict | Resolution |
+|---|---|---|
+| N1 compliance-mapping.md missing | ❌ WRONG — docs/compliance-mapping.md EXISTS (verified via repo listing; created before the review). The EU AI Act Art.-mapping and SOC 2 evidence-pack content it demands is present. No change | — |
+| N2 flows/06 structural drift | ✅ VALID | params_hash-per-surface section moved below the MRTR numbered steps |
+| N3 flows/02 spool placement | ✅ VALID | Spool note moved out of invariant 7 into its own invariant 10 |
+| N4 Cursor beforeReadFile unverified | ✅ VALID (sources genuinely conflict) | flows/05 build-time verification line + fallback boundary note |
+| N5 ~1ms stated as fact | ✅ VALID (own Law 10) | flows/05 (x2), flows/02, tech-stack rephrased: "cold-start TARGET ~1ms, measured in E2; Windows process spawn is several ms" |
+| N6 org decision split | ✅ VALID | Pinned: claim GitHub org `warden` (verified FREE), fallback `wardengate` — recorded in AGENTS.md + resolution log |
+| Cosmetic step 0.5 | ✅ | Scalability scale-out path renumbered 1–5 |
+
 ---
 
 ## Verdict summary
@@ -115,7 +127,7 @@ WRONG (corrected below with verification); all PERF/ADOPT items adopted.
 
 | ID | Fix | Where |
 |---|---|---|
-| ADOPT-1 | Name reality: BOTH `warden` and `warden-cli` taken on crates.io (verified). Binary `warden`; crate `warden-guard` (candidate); GitHub org `warden` available — claim pre-launch | tech-stack |
+| ADOPT-1 | Name reality: BOTH `warden` and `warden-cli` taken on crates.io (verified). Binary `warden`; crate `warden-guard` (candidate); GitHub org DECISION (pinned): claim `warden` (verified FREE), fallback `wardengate`; domain TBD — claim pre-launch | tech-stack, AGENTS.md |
 | ADOPT-2 | Browser demo via wasm32-compiled pure engine | tech-stack, goals |
 | ADOPT-3 | Windows first-class: CI OS matrix + winget/scoop | repo-layout, goals |
 | ADOPT-4 | warden-policy-test GitHub Action as launch asset | goals |

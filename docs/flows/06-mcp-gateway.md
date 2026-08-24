@@ -81,6 +81,19 @@ Key hygiene (review-3 P1-6): the requestState HMAC key is NOT the webhook secret
 Both are DERIVED from one root secret via HKDF with distinct labels
 (derive("requestState") vs derive("webhook")) — purpose-bound keys, one root to rotate.
 
+1. ESCALATE → return InputRequiredResult with signed requestState. The escalation ticket
+   is created and ledgered as before; the human approves via the inbox (Flow 3).
+2. Client retries the identical call with requestState → gateway verifies HMAC →
+   validates escalation approved · unconsumed · params_binding_hash equality → forwards.
+   (Single-use is enforced server-side via the consumed flag — exactly as the spec's
+   one-time-redemption warning requires.)
+3. Denied/expired/tampered state → structured JSON-RPC error; ticket lives on for the
+   retry path.
+
+Poll-and-hold (≤ min(expiry, 120s)) remains as a documented FALLBACK for clients that
+mishandle MRTR — primary path is retry-native. This extends the bait-and-switch defense
+into the protocol layer natively and eliminates the held-connection problem class.
+
 ## params_hash preimage per surface (review-3 P1-7)
 
 "sha256 of raw params bytes as received" must be defined per transport or E6
@@ -94,19 +107,6 @@ cross-surface comparisons become philosophical:
 
 Each surface hashes the bytes it physically received BEFORE any parsing — same
 discipline as the gateway fast path.
-
-1. ESCALATE → return InputRequiredResult with signed requestState. The escalation ticket
-   is created and ledgered as before; the human approves via the inbox (Flow 3).
-2. Client retries the identical call with requestState → gateway verifies HMAC →
-   validates escalation approved · unconsumed · params_binding_hash equality → forwards.
-   (Single-use is enforced server-side via the consumed flag — exactly as the spec's
-   one-time-redemption warning requires.)
-3. Denied/expired/tampered state → structured JSON-RPC error; ticket lives on for the
-   retry path.
-
-Poll-and-hold (≤ min(expiry, 120s)) remains as a documented FALLBACK for clients that
-mishandle MRTR — primary path is retry-native. This extends the bait-and-switch defense
-into the protocol layer natively and eliminates the held-connection problem class.
 
 MRTR is the TRANSPORT for HITL, not the HITL itself:
 - HITL = Flow 3 (escalation ticket, inbox, human approves, expiry).

@@ -55,6 +55,11 @@ fail-closed — this is a Law-1 requirement, not a preference:
   hooks but IGNORE user-level hooks (threat-model notes this boundary).
 - Cursor outcome set is allow/ask/deny; Warden emits allow/deny only (ask hands
   approval to the host UI — same evidence-chain rule as Claude Code). Exit code 2 ≡ deny.
+- BUILD-TIME VERIFICATION (review-3 N4): `beforeReadFile` permission-honoring is
+  UNVERIFIED — official docs list it, but independent Jul 2026 analyses report only
+  beforeShellExecution/beforeMCPExecution (plus preToolUse) actually enforce. Verify
+  against the pinned Cursor version; if observe-only, `.env` read-protection on Cursor
+  relies on Bash-command parsing alone — document that boundary in threat-model.
 - Cursor matchers are JS regex over the command string — the matcher on our entries is
   deliberately empty (gate everything the event covers); no accidental substring reliance.
 
@@ -70,7 +75,7 @@ fail-closed — this is a Law-1 requirement, not a preference:
 
 ## Steps
 
-1. Host invokes `warden hook` per PreToolUse event (~1ms startup).
+1. Host invokes `warden hook` per PreToolUse event (cold-start TARGET ~1ms; measured in E2 — Windows process spawn is several ms, review-3 N5).
 2. Tool name normalized to the universal namespace (one policy language governs every
    surface): Bash → shell.exec, Write/Edit → fs.write, Read → fs.read,
    mcp__stripe__refund → mcp.stripe.refunds.create, WebFetch → web.fetch,
@@ -115,7 +120,7 @@ this table == Flow 9's pack description.
 | Bypass-mode verification | e2e test MUST cover `--dangerously-skip-permissions`: hook deny honored in bypass mode. Upstream hooks/permissions interplay is in flux (e.g. issues #39344, #36059) — verify against the installed host version before the launch demo leans on it |
 | Windows approval matrix | Hook-local approval (Flow 3) verified across Windows Terminal, VS Code integrated terminal, git-bash, WSL-invoked claude (review-2 ADOPT-6). Headless `-p`/CI → no console → auto-deny with a DISTINCT reason code `DENY_NO_CONSOLE` (evidence trail distinguishes it from a human DENY) |
 | Roadmap | `updatedInput` (host-supported input rewriting paired with allow) = future MODIFY / redact-and-allow enforcement surface (closes AARM R4-MODIFY, see docs/aarm-mapping.md). Host now exposes ~31 hook events (Setup, PermissionRequest, PermissionDenied, PostToolUseFailure, SubagentStart, ConfigChange…) — PreToolUse is not the only seam; PostToolUseFailure pairs naturally with ledger outcome-correlation later |
-| Binary | Same `warden` binary (clap subcommand) — no interpreter, ~1ms cold start |
+| Binary | Same `warden` binary (clap subcommand) — no interpreter; cold-start TARGET ~1ms, measured in E2 (review-3 N5) |
 | init | Careful JSON merge; writes starter pack; prints 3-command demo; never writes outside target project dir |
 | Idempotency | request_id UUIDv4 at hook boundary |
 | Testing | Table-driven event→request→verdict matrix; e2e subprocess test: `rm -rf /` event → deny with ledger ref |

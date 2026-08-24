@@ -10,7 +10,7 @@ Decision date: 2026-08-23. Owner: Jai Keshav Sharma.
 | Policy engine | Warden Policy IR (JSON) transpiled to Cedar (`cedar-policy` crate, the formally verified engine AWS uses) + Cedar Analysis for policy verification |
 | Runtime / service | `axum` + `tokio` (async HTTP service: decisions API, policy admin, escalations, ledger, WebSocket stream) |
 | Ledger | SHA-256 hash chain (`sha2`) + RFC 6962 Merkle checkpoints + `ed25519-dalek` signing + optional Rekor v2 / RFC 3161 TSA anchoring (`reqwest`); storage: SQLite / Postgres via `sqlx` ONLY (one storage code path — no rusqlite) |
-| Interceptors | Same binary: `warden hook` (Claude Code / Cursor PreToolUse), `warden gateway` (MCP streamable-HTTP proxy), `warden shim` (MCP stdio proxy); ~1ms startup, fail-closed. Hook HTTP client = `ureq` (blocking, no async runtime — faster cold start); gateway uses `reqwest` |
+| Interceptors | Same binary: `warden hook` (Claude Code / Cursor PreToolUse), `warden gateway` (MCP streamable-HTTP proxy), `warden shim` (MCP stdio proxy); cold-start TARGET ~1ms (measured in E2 — Windows process spawn is several ms), fail-closed. Hook HTTP client = `ureq` (blocking, no async runtime — faster cold start); gateway uses `reqwest` |
 | NL policy compiler | Rust: `anthropic` / `async-openai` crates, `serde` + `schemars` (schema-constrained structured outputs), offline only, human-approval trust loop |
 | Escalation / HITL | In-core: approval inbox API + auto-deny sweeper + params-hash binding |
 | Cache / policy currency | In-process -> Redis (`redis` crate) -> DB, with pub/sub invalidation |

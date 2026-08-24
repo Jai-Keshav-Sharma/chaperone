@@ -38,16 +38,16 @@ in Kafka because losing a few is survivable; losing a ledger entry is not.)
 
 ## Designed scale-out path (in order, only when measured traffic demands)
 
-0.5. Group commit: if E2 shows SQLite commit rate below the 300/sec floor on slower
-     disks, batch fsyncs within the single-writer model — cheaper intermediate lever
-     than the Postgres move. Only if measured demand appears (review-2 PERF-6).
-1. Read/write split: verify, proofs, exports, dashboard reads are replica-safe already.
-2. Multi-writer ledger: sequence assignment moves into a DB transaction
+1. Group commit: if E2 shows SQLite commit rate below the 300/sec floor on slower
+   disks, batch fsyncs within the single-writer model — cheaper intermediate lever
+   than the Postgres move. Only if measured demand appears (review-2 PERF-6).
+2. Read/write split: verify, proofs, exports, dashboard reads are replica-safe already.
+3. Multi-writer ledger: sequence assignment moves into a DB transaction
    (SELECT ... FOR UPDATE + insert). Preimage spec unchanged. → several thousand/sec on Postgres.
-3. Per-shard chains with cross-anchored checkpoints: shard ledger by tenant/agent-group;
+4. Per-shard chains with cross-anchored checkpoints: shard ledger by tenant/agent-group;
    each shard its own chain; all shard checkpoints anchor into the same Rekor/TSA witnesses.
    → platform scale. (Merkle structure fully earns its name here.)
-4. Stateless decision replicas: engine is a pure function over immutable policy bytes;
+5. Stateless decision replicas: engine is a pure function over immutable policy bytes;
    evaluation replicas scale freely behind a load balancer once writes are decoupled.
 
 Principle: hard guarantees are independent of load; aggregate throughput is added only
