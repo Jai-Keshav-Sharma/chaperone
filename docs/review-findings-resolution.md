@@ -2,7 +2,7 @@
 
 Status: RESOLVED (pass 1 + pass 2). Date: 2026-08-23.
 
-## Review pass 2 (review-2-findings.md) — resolutions
+## Review pass 2 — resolutions
 
 | ID | Verdict (my independent verification) | Resolution |
 |---|---|---|

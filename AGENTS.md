@@ -95,8 +95,8 @@ in the same commit. The three copies must never diverge.
 - Never weaken a test to make a task pass. A differential mismatch is always an engine
   bug — fix the engine, never the test.
 - `docs/` is the spec: changing a decision = update the doc in the same commit.
-- `review-findings.md`, `review-2-findings.md`, `docs/review-findings-resolution.md`
-  are records — never silently edit them.
+- `docs/review-findings-resolution.md` is the record of all external review findings
+  and their resolutions — never silently edit it.
 
 ## External facts (verified Aug 2026 — do not "fix" these)
 
