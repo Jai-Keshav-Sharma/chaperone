@@ -7,7 +7,7 @@ Status: DECIDED. Date: 2026-08-23. Workspace: Cargo (Rust), one binary.
 ```
 warden/                              # Jai-Keshav-Sharma/warden (private until launch)
 ├── Cargo.toml                       # workspace root
-├── Makefile                         # install | check | test | test-all | bench | serve | paper-figures
+├── Makefile                         # install | check | test | test-all | bench | serve | paper-figures | changelog
 ├── LICENSE / NOTICE                 # Apache-2.0 from day one
 ├── README.md                        # quickstart: warden init → 5-minute demo
 ├── AGENTS.md                        # compact context for every future session: read-order,
