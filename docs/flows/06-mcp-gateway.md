@@ -74,8 +74,26 @@ Warden's primary path (all ingredients already exist — hmac crate, escalation_
 params_binding_hash):
 
 ```
-requestState = HMAC(secret, escalation_id ‖ expires_at ‖ params_binding_hash ‖ agent_id)
+requestState = HMAC(key_requestState, escalation_id ‖ expires_at ‖ params_binding_hash ‖ agent_id)
 ```
+
+Key hygiene (review-3 P1-6): the requestState HMAC key is NOT the webhook secret.
+Both are DERIVED from one root secret via HKDF with distinct labels
+(derive("requestState") vs derive("webhook")) — purpose-bound keys, one root to rotate.
+
+## params_hash preimage per surface (review-3 P1-7)
+
+"sha256 of raw params bytes as received" must be defined per transport or E6
+cross-surface comparisons become philosophical:
+
+| Surface | params_hash preimage |
+|---|---|
+| Gateway | sha256 of the raw HTTP body bytes as received |
+| Hook | sha256 of the raw `tool_input` JSON bytes as received in the event |
+| Shim | sha256 of the raw params bytes of the MCP tools/call as received |
+
+Each surface hashes the bytes it physically received BEFORE any parsing — same
+discipline as the gateway fast path.
 
 1. ESCALATE → return InputRequiredResult with signed requestState. The escalation ticket
    is created and ledgered as before; the human approves via the inbox (Flow 3).

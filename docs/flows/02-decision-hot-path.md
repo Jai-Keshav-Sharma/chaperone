@@ -40,6 +40,10 @@ Agent proposes action (tool call)
 6. Latency budget: engine <10ms P95, endpoint <50ms P95, hook binary startup ~1ms.
 7. Trace redaction: decision_trace contains only rule ids, match booleans, and operand
    paths — NEVER raw parameter values. The ledger stores params_hash only (never secrets).
+   OPTIONAL (roadmap, review-3 P2-12): synthesized fail-closed blocks (gate unreachable)
+   are inherently unledgered — the hook may spool them to a local JSONL and reconcile
+   them into the chain on next successful contact. Honest caveat: the spool is not
+   chain-grade until reconciled; it narrows the audit gap, it doesn't close it.
 8. Context-trust invariant (review-2 SPEC-5): context fields that influence verdicts
    (surface, delegation_depth, and any future intent fields) are computed at the TRUSTED
    boundary — the hook/gateway derive them; the decision API never accepts them from

@@ -46,6 +46,14 @@ $ retry the call                           → ALLOW (ESCALATION_APPROVED, ledge
 Under five minutes, zero code changes. The user personally experiences: a block, a
 tamper-evident receipt, a human approval, a completed retry. The demo IS the onboarding.
 
+## Demo dependencies (review-3 P2-11)
+
+The demo's refund ESCALATE requires a refund tool the user doesn't have. `warden init
+--demo` bundles a tiny canned MOCK MCP server (mock-stripe: a `refunds.create` echo tool
+with recorded side effects, no network) and wires it through `warden shim` — so minute
+four happens offline on every machine. The mock is clearly labeled; it never ships in
+enforce mode by default.
+
 ## Tooling
 
 | Concern | Choice |

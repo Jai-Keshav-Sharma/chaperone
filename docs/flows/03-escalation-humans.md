@@ -18,7 +18,9 @@ Engine matches an escalate rule
   → 3. Human resolves via inbox (dashboard) or CLI:
        approve/deny + note → row updated (resolver, resolved_at)
        + ESCALATION_RESOLVED ledger entry (APPROVED|DENIED) appended
-       Background sweeper (30s): overdue → expired + EXPIRED ledger entry.
+       Background sweeper (30s): overdue → expired + ESCALATION_RESOLVED ledger entry
+       with decision=EXPIRED (the enum has no EXPIRED entry_type — the sweeper appends
+       entry_type=ESCALATION_RESOLVED, decision=EXPIRED; review-3 P1-5).
        SILENCE ALWAYS MEANS DENY.
   → 4. Consumption: agent retries identical call with escalation_id →
        validates: exists · approved · unconsumed · params_binding_hash equality

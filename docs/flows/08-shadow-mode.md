@@ -20,6 +20,9 @@ WOULD_ALLOW / WOULD_BLOCK / WOULD_ESCALATE.
 1. Shadow is an explicit operator choice (mode field per request / WARDEN_MODE=shadow).
    NEVER an automatic fallback. Fail-closed still governs enforce mode.
 2. Same chain, same guarantees: WOULD_* entries live in the real ledger.
+3. Shadow NEVER creates side effects beyond the ledger (review-3 P1-2): WOULD_ESCALATE
+   is ledgered as a decision but creates NO escalation row, fires NO webhook, sends NO
+   notification. Observation mode cannot spam the inbox — ledger + metrics only.
 
 ## Tooling
 

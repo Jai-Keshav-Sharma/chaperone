@@ -32,10 +32,11 @@ warden/                              # Jai-Keshav-Sharma/warden (private until l
 │   │       ├── docs/                # document parsers (md/txt/pdf/docx/html + OCR tiers)
 │   │       └── decision/            # DecisionService orchestration (Flow 2, fail-closed)
 │   │
-│   ├── warden-server/               # the `warden serve` binary — axum app factory + routes
-│   │                                #   (decisions, policies, escalations, ledger, health, metrics, ws)
-│   └── warden-cli/                  # the `warden` binary — clap: init | hook | gateway | shim |
-│                                    #   policy | ledger | approve | deny | bench
+│   ├── warden-server/               # LIBRARY crate (axum app factory + routes) — consumed by the
+│   │                                #   cli's `serve` subcommand; ships NO binary of its own.
+│   │                                #   Exactly ONE binary ships, named `warden` (review-3 P2-9)
+│   └── warden-cli/                  # the `warden` binary — clap verbs per docs/tech-stack.md
+│                                    #   (canonical list; this comment is not authoritative)
 │
 ├── policies/
 │   ├── examples/                    # pol_refunds.json, starter-safety/ (checked-in IR)
@@ -57,7 +58,9 @@ warden/                              # Jai-Keshav-Sharma/warden (private until l
 │                                    #   cargo-deny + cargo-audit in CI; release artifacts
 │                                    #   cosign/Sigstore-signed + SBOM attached (review-2 SEC-4);
 │                                    #   cargo-fuzz targets for hook stdin parser, gateway body
-│                                    #   parsing, IR validator, canonical.rs (review-2 SEC-5)
+│                                    #   parsing, IR validator, canonical.rs (review-2 SEC-5) —
+│                                    #   fuzz jobs run ubuntu-latest ONLY (libFuzzer is
+│                                    #   unavailable on windows-msvc; review-3 P2-10)
 └── .gitignore                       # target/, node_modules/, *.db, results/
 ```
 

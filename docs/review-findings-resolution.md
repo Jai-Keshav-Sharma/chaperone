@@ -32,7 +32,6 @@ Status: RESOLVED (pass 1 + pass 2). Date: 2026-08-23.
 | ADOPT-11 31 hook events | ✅ VALID (roadmap note) | flows/05 roadmap row |
 
 ### Third pass — cross-doc drift (resolved same day)
-
 - flows/03 MRTR references (lines 15, 60, 74) updated to retry-native per flows/06:
   client retries with signed requestState; poll-and-hold ≤120s = fallback only.
   The tooling row (the one an implementer codes from) no longer says "auto re-submit".
@@ -40,6 +39,24 @@ Status: RESOLVED (pass 1 + pass 2). Date: 2026-08-23.
   warden doctor, SPEC-4) and Transport security (TLS, SEC-2) rows.
 - aarm-mapping.md now cites the verified organizational conditions exactly
   (≥5 active production customers running ≥3 months + benchmarking commitment).
+
+### Review pass 3 (reviewer, P0/P1/P2) — resolutions
+
+| ID | Verdict (my verification) | Resolution |
+|---|---|---|
+| P0 Cursor fail-open | ✅ CONFIRMED against cursor.com/docs/hooks: failClosed defaults false; crash/timeout/invalid-JSON → action proceeds; cloud agents run repo hooks but ignore user-level hooks | flows/05 Cursor wiring section: project-level .cursor/hooks.json with failClosed:true + timeout:35; allow/deny only; exit-2 ≡ deny. threat-model boundary note |
+| P1-1 normalization map | ✅ VALID | flows/05: web.fetch, web.search, notebook.edit, task.spawn added |
+| P1-2 shadow escalation tickets | ✅ VALID | flows/08 rule 3: shadow never creates escalations/notifications — ledger + metrics only |
+| P1-3 proposed_params purge vs NOT NULL | ✅ VALID | data-model: column nullable-after-retention (NOT NULL at insert, NULLed on purge, row survives) |
+| P1-4 ungoverned_default in config | ✅ VALID | data-model warden.yaml section includes it |
+| P1-5 EXPIRED entry shape | ✅ VALID | flows/03: sweeper appends entry_type=ESCALATION_RESOLVED, decision=EXPIRED |
+| P1-6 HMAC key separation | ✅ VALID | flows/06: HKDF purpose-bound keys (requestState vs webhook) from one root secret |
+| P1-7 params_hash per surface | ✅ VALID | flows/06: preimage table per transport (gateway body / hook tool_input / shim params bytes) |
+| P2-8 CLI verb lists | ✅ VALID | tech-stack = canonical list (incl. unhook, approve/deny, escalations list, policy edit, init --demo/--no-autostart); repo-layout points at it |
+| P2-9 warden-server wording | ✅ VALID | repo-layout: warden-server = library crate; exactly ONE binary named warden |
+| P2-10 cargo-fuzz on MSVC | ✅ VALID (libFuzzer unavailable on windows-msvc) | repo-layout: fuzz jobs ubuntu-latest only |
+| P2-11 demo refund tool | ✅ VALID | flows/09: warden init --demo bundles canned mock MCP server via shim |
+| P2-12 spooling option | ✅ VALID (honest-caveat) | flows/02: optional local JSONL spool + reconcile; not chain-grade until reconciled |
 
 ---
 

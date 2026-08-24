@@ -31,6 +31,33 @@ Matcher coverage is deliberate (review-2 SPEC-3):
 - Read stays inside deliberately: secret-read blocking (`.env`) needs file-tool
   visibility, not just Bash-command parsing.
 
+## Cursor wiring (fail-closed by config — review-3 P0)
+
+Cursor's hooks DEFAULT TO FAIL-OPEN (verified cursor.com/docs/hooks): crash, timeout,
+or invalid JSON → action proceeds, unless the entry sets `failClosed: true`. `warden
+init` therefore writes PROJECT-level `.cursor/hooks.json` entries that are explicitly
+fail-closed — this is a Law-1 requirement, not a preference:
+
+```json
+{ "version": 1, "hooks": {
+    "beforeShellExecution": [
+      { "command": "warden hook", "timeout": 35, "failClosed": true } ],
+    "beforeMCPExecution": [
+      { "command": "warden hook", "timeout": 35, "failClosed": true } ],
+    "beforeReadFile": [
+      { "command": "warden hook", "timeout": 35, "failClosed": true } ]
+}}
+```
+
+- `timeout: 35` — Cursor's timeout defaults to "platform default" and would kill the
+  ~30s hook-local approval prompt mid-flow; the bound must sit ABOVE the prompt bound.
+- PROJECT-level (`.cursor/hooks.json`), never user-level: Cursor cloud agents run repo
+  hooks but IGNORE user-level hooks (threat-model notes this boundary).
+- Cursor outcome set is allow/ask/deny; Warden emits allow/deny only (ask hands
+  approval to the host UI — same evidence-chain rule as Claude Code). Exit code 2 ≡ deny.
+- Cursor matchers are JS regex over the command string — the matcher on our entries is
+  deliberately empty (gate everything the event covers); no accidental substring reliance.
+
 ## Contract
 
 - In (stdin JSON): `{"tool_name": "Bash", "tool_input": {"command": "rm -rf /"}, "session_id": ...}`
@@ -44,9 +71,11 @@ Matcher coverage is deliberate (review-2 SPEC-3):
 ## Steps
 
 1. Host invokes `warden hook` per PreToolUse event (~1ms startup).
-2. Tool name normalized to the universal namespace: Bash → shell.exec, Write/Edit → fs.write,
-   Read → fs.read, mcp__stripe__refund → mcp.stripe.refunds.create. ONE policy language
-   governs every surface.
+2. Tool name normalized to the universal namespace (one policy language governs every
+   surface): Bash → shell.exec, Write/Edit → fs.write, Read → fs.read,
+   mcp__stripe__refund → mcp.stripe.refunds.create, WebFetch → web.fetch,
+   WebSearch → web.search, NotebookEdit → notebook.edit, Task → task.spawn.
+   Policies can target every gated tool by its universal name (review-3 P1-1).
 3. DecisionRequest built: request_id (UUIDv4 at boundary), agent_id (WARDEN_AGENT_ID or host
    session identity), context.surface = claude_code|cursor.
 4. Decision service called (localhost / WARDEN_URL), 1000ms timeout.

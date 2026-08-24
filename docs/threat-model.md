@@ -24,6 +24,14 @@ uninstall Warden. The hook protects against a MISTAKEN or manipulated agent acti
 within the configured surface. It is not a jail against an ADVERSARIAL actor with
 machine access — no user-space control can be.
 
+Per-host seam boundaries (review-3 P0):
+- Claude Code: hooks run regardless of permission mode (verify per pinned version).
+- Cursor: hooks DEFAULT TO FAIL-OPEN — `warden init` writes project-level
+  `.cursor/hooks.json` entries with `failClosed: true` + `timeout: 35` (verified
+  cursor.com/docs/hooks). Cursor cloud agents run REPO hooks but IGNORE user-level
+  hooks — hence project-level install is mandatory, and the cloud-agent boundary is
+  the same honest caveat as the SaaS-agents one: not fully interceptable by us.
+
 Consequences, stated honestly:
 - The hook = the seatbelt for the five-minute demo and the developer wedge.
 - The gateway = the real chokepoint. A centralized, network-level enforcement point

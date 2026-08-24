@@ -137,7 +137,9 @@ CREATE TABLE escalations (
     policy_version  INTEGER NOT NULL,
     rule_ids        TEXT NOT NULL,                 -- JSON array of determining escalate rules
     tool            VARCHAR(128) NOT NULL,
-    proposed_params TEXT NOT NULL,                 -- full params JSON (approver visibility; ledger keeps only hash)
+    proposed_params TEXT,                          -- full params JSON for approver visibility; NOT NULL at
+                                                   -- insert; NULLED (purged) after the retention window —
+                                                   -- the row survives, params do not (review-3 P1-3)
     params_binding_hash VARCHAR(64) NOT NULL,      -- sha256(canonical_json(params)); RETRY BINDING only.
                                                    -- Distinct from ledger_entries.params_hash (raw bytes) — do not conflate
     status          VARCHAR(16) NOT NULL DEFAULT 'pending',  -- pending|approved|denied|expired|consumed
@@ -189,4 +191,5 @@ determinism is untouched. Avoids O(window) SUM per decision as the ledger grows.
 
 `warden.yaml`: derived_attributes declarations (ledger_sum / ledger_count with tool, decision,
 window, same_agent filters) — consumed by the derived-context computer; webhook URL + secret;
-policy pack registry settings.
+policy pack registry settings; **`ungoverned_default: block|allow`** (deployment policy choice,
+flows/02/09 — block for serve, allow for the local quickstart); escalation TTL; prompt bound.
