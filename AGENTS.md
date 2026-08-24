@@ -75,6 +75,10 @@ three harnesses so every contributor gets the same behavior regardless of tool:
 - `.claude/skills/karpathy-guidelines/SKILL.md` — Claude Code
 - `.opencode/skills/karpathy-guidelines/SKILL.md` — opencode
 
+MANDATORY CODING BEHAVIOR: before writing, changing, fixing, or refactoring ANY code,
+load and apply the `karpathy-guidelines` skill. This is a hard rule, not a suggestion —
+if the skill content is not in your context, pause and load it first.
+
 SYNC LAW: if you edit the canonical copy, apply the identical change to the other two
 in the same commit. The three copies must never diverge.
 
