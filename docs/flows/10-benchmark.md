@@ -16,15 +16,18 @@ bench/
              canned responses, recorded side effects, ZERO network
   gold/      hand-written IR policies (independent of the system under test — never
              compiler output, never derived by running the engine) + English SOP sources
-  scenarios.jsonl  ≥300 rows {scenario_id, attack_class, agent, tool, params, context,
+  scenarios.jsonl  ≥1000 rows {scenario_id, attack_class, agent, tool, params, context,
              gold_decision} — generated once, seeded, CHECKED INTO THE REPO
+             (benign ≥400; review-4 C2)
   attacks/   deterministic scripted generators (boundary probing, unit swaps, tool aliases,
              delegation spoofing, stale-policy rig, bait-and-switch)
   runner     boots a REAL warden serve (fresh tmp DB), activates gold policies, replays
              scenarios via the HTTP decision API directly (isolates measured latency;
              interceptor correctness has its own e2e tests)
   metrics.json  fixed key order: block_recall, false_block_rate, escalation_accuracy,
-             latency p50/p95/p99, per-class breakdown, chain_verified, seed, git_sha
+             latency p50/p95/p99, per-class breakdown, chain_verified, seed, git_sha.
+             Deterministic section: byte-identical assertion. Latency section: epsilon
+             band + absolute bound. Wilson CIs published alongside point estimates.
 ```
 
 ## Targets (measured, never claimed)
@@ -63,10 +66,26 @@ Ungated pass-through; naive regex guardrail. Honest comparisons, not perfection 
 - Self-authored corpus alone = conformance test, not efficacy benchmark. External
   contributions are what make benchmark-as-standard compound.
 
-## Reproducibility
+## Reproducibility — split schema (review-4 C1)
 
-Seeds pinned (--seed 1337); N=3 repetitions; CI asserts two runs produce byte-identical
-metrics.json. The scenario files ARE the dataset — public, forkable, auditable.
+Wall-clock latencies (p50/p95/p99) can NEVER be byte-identical across runs. The
+assertion therefore splits:
+
+- DETERMINISTIC section (verdicts, counts, hashes, replay results, chain_verified):
+  asserted BYTE-IDENTICAL across runs (seeds pinned, N=3).
+- LATENCY section: asserted within an epsilon band (e.g., p95 within ±20% of baseline)
+  plus the absolute bound check against the <50ms target.
+
+Both sections share the same metrics.json; the CI assertion applies the right
+comparison to each section. Seeds pinned (--seed 1337); N=3 repetitions. The scenario
+files ARE the dataset — public, forkable, auditable.
+
+## Sample size (review-4 C2)
+
+≥300 rows puts the headline targets at the sample's noise floor (false-block ≤1.5%
+≈ 1.8 events on ~120 benign rows). Grown to **≥1,000 scenarios (benign ≥400)** —
+synthetic scenarios are cheap, statistical power is not. Publish **Wilson confidence
+intervals** alongside every point estimate, same discipline as the committed Cohen's κ.
 
 ## Tooling
 

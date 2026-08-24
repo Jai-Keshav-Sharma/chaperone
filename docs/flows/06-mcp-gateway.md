@@ -74,8 +74,14 @@ Warden's primary path (all ingredients already exist — hmac crate, escalation_
 params_binding_hash):
 
 ```
-requestState = HMAC(key_requestState, escalation_id ‖ expires_at ‖ params_binding_hash ‖ agent_id)
+requestState = HMAC(key_requestState, canonical_json({
+    escalation_id, expires_at, params_binding_hash, agent_id
+}))
 ```
+
+Law 4 applies HERE TOO (review-4 B2): HMAC over canonical JSON of the tuple — never
+`‖`-concatenation (variable-length fields with digit/hex overlap would make the parse
+boundary ambiguous).
 
 Key hygiene (review-3 P1-6): the requestState HMAC key is NOT the webhook secret.
 Both are DERIVED from one root secret via HKDF with distinct labels
@@ -121,9 +127,10 @@ MRTR is the TRANSPORT for HITL, not the HITL itself:
 | Proxy | `axum` reverse proxy + `reqwest` upstream client, bidirectional response streaming |
 | Fast path | Mcp-Method/Mcp-Name routing; `needs_params(policy_set, tool)` from the engine |
 | Escalation | MRTR retry-native primary: signed requestState (HMAC: escalation_id ‖ expires_at ‖ params_binding_hash ‖ agent_id); client retries → verify → approved/unconsumed/params-bound → forward. Poll-and-hold ≤120s as fallback only |
-| Identity | MCP client identity → agent_id (OAuth subject / CIMD); WARDEN_AGENT_ID override; unknown-agent policy-blockable |
+| Identity | agent_id is PINNED to the authenticated API key server-side (agent_api_keys.agent_id) — NO request-supplied or env-var override in gateway mode (spoofing vector; review-4 B3). WARDEN_AGENT_ID override exists ONLY for the hook/shim local seams (single-user machines, documented best-effort per aarm-mapping R6) |
 | OAuth | Transparent passthrough — zero changes to clients or servers |
-| Config | --upstream <url>, --port, WARDEN_URL, agent-id mapping |
+| Config | --upstream <url>, --port, WARDEN_URL. Mode (enforce|shadow) is server-side operator config, never client-supplied (review-4 B1) |
+| Body handling | params_hash requires full body buffering BEFORE the verdict: buffered by design; explicit max-body-size with fail-closed reject (memory-DoS defense). Governed calls are NOT claimed as byte-perfect streaming (review-4 D) |
 | Testing | fake_mcp_server fixture; e2e real MCP client session → allow/block/escalate wire behavior + ledger +N |
 
 ## Pitch

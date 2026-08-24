@@ -30,6 +30,21 @@ runtime authorization "should still have been standing when the safety layer was
 off." That IS Warden's thesis in news form. Cite it in the README/launch post as the
 motivation case alongside EU AI Act Art. 50 timing.
 
+## The MCP-gateway cohort (review-4 A4 — the red ocean is real)
+
+Routing/auth/observability gateways, none with tamper-evident ledgers:
+
+| Player | What they have | Gap vs Warden |
+|---|---|---|
+| Cordon (runany.dev, Jul 2026) | OSS MCP security gateway, PBAC + HITL approvals — closest OSS overlap | No ledger/anchoring, no NL compiler, no benchmark |
+| Lasso MCP Gateway (OSS) | Security-centric MCP gateway (Portkey partnership Feb 2026) | Gateway only; no decision ledger |
+| agentgateway (OSS, Cerbos-affiliated) | MCP + A2A proxy, drop-in security/observability | ext_authz to Cerbos; plain logs |
+| Microsoft / Docker MCP Gateway, IBM ContextForge, Bifrost | Routing + auth + observability | No tamper-evident audit layer |
+
+**Consequence: the first-mover claim is scoped** — "first OSS MCP gateway with HITL"
+is NOT defensible. The defensible claim: **first with a tamper-evident anchored
+ledger + NL policy compiler with a human trust loop + open pre-action benchmark.**
+
 ## The funded platform cohort (research, Aug 2026)
 
 | Player | Owns | Warden's counter |

@@ -17,8 +17,10 @@ WOULD_ALLOW / WOULD_BLOCK / WOULD_ESCALATE.
 
 ## Hard rules
 
-1. Shadow is an explicit operator choice (mode field per request / WARDEN_MODE=shadow).
-   NEVER an automatic fallback. Fail-closed still governs enforce mode.
+1. Shadow is an explicit OPERATOR choice, pinned SERVER-SIDE (per agent / API key /
+   server config). The client NEVER supplies a mode field in the decision request —
+   an agent cannot self-exempt from enforcement (review-4 B1; AARM R1: no fail-open
+   bypass). Interceptors report seam type only.
 2. Same chain, same guarantees: WOULD_* entries live in the real ledger.
 3. Shadow NEVER creates side effects beyond the ledger (review-3 P1-2): WOULD_ESCALATE
    is ledgered as a decision but creates NO escalation row, fires NO webhook, sends NO

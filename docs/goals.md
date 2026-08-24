@@ -82,7 +82,9 @@ global race is young.
 - Experiments map: E4 → paper (i) compiler fidelity; E5 → paper (ii) tamper evidence;
   Flow 10 → paper (iii) community benchmark.
 - Honest-numbers rule: the paper cites nothing the benchmark didn't produce.
-  make paper-figures twice → byte-identical output.
+  Reproducibility split (review-4 C1/C2): deterministic metric sections asserted
+  byte-identical across runs; latency sections within epsilon bands; ≥1,000 scenarios
+  (benign ≥400) with Wilson confidence intervals alongside every point estimate.
 
 ### 5. Business
 

@@ -30,8 +30,12 @@ Status: DECIDED. Date: 2026-08-23.
 - `warden doctor` validates the whole local chain: hook wiring (settings merge intact,
   matcher grammar OK), gate reachability, ledger health (chain-verify head), policy
   currency — prints fix hints. Permanent support-cost reducer + a good demo beat.
+  Plus a LIVE ENFORCEMENT CANARY (review-4 B4): doctor installs a test rule denying a
+  benign canary tool call, invokes it through the real host seam, and verifies the
+  block actually held — the runtime proof that enforcement is live on THIS surface
+  and version ("the only gate that proves its own enforcement is live").
 
-## Demo script
+## Demo script (sequence numbers are queried at runtime — never hardcoded; review-4 C3)
 
 ```
 $ warden init                              → "Warden installed. Try this:"

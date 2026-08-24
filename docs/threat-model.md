@@ -24,8 +24,16 @@ uninstall Warden. The hook protects against a MISTAKEN or manipulated agent acti
 within the configured surface. It is not a jail against an ADVERSARIAL actor with
 machine access — no user-space control can be.
 
-Per-host seam boundaries (review-3 P0):
+Per-host seam boundaries (review-3 P0, review-4 A1/A2):
 - Claude Code: hooks run regardless of permission mode (verify per pinned version).
+  PIPE MODE EXCEPTION: `claude -p` / `--bare` skip ALL hooks (issues #37559, #40506) —
+  the headless/CI persona is NOT covered by the hook seam; steer those users to the
+  gateway/shim seams (MCP tools) and state plainly that Bash under pipe mode is
+  ungovernable by the hook on that surface.
+- Surface divergence: PreToolUse deny is reportedly ignored in Claude Desktop/Cowork
+  sessions on Windows (#77708) — enforcement varies per host SURFACE, not just
+  version. The doctor canary (review-4 B4) is the runtime proof of enforcement on the
+  user's actual surface.
 - Cursor: hooks DEFAULT TO FAIL-OPEN — `warden init` writes project-level
   `.cursor/hooks.json` entries with `failClosed: true` + `timeout: 35` (verified
   cursor.com/docs/hooks). Cursor cloud agents run REPO hooks but IGNORE user-level

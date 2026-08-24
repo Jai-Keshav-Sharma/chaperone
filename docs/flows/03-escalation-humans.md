@@ -50,9 +50,10 @@ Instead, on ESCALATE the hook resolves the escalation ITSELF:
    ticket message; the escalation REMAINS PENDING. Late approval arrives via the
    CLI/dashboard inbox path, and the params-bound retry path completes it.
    The prompt bound (~30s) and the escalation TTL (900s) are independent clocks —
-   never assumed to coincide. No-console denies carry a DISTINCT reason code
-   `DENY_NO_CONSOLE` so the evidence trail distinguishes them from human DENY
-   (review-2 ADOPT-6).
+   never assumed to coincide. The deny/timeout message MUST print the TTL window so
+   users know how long the retry path stays valid (review-4 D).
+   No-console denies carry a DISTINCT reason code `DENY_NO_CONSOLE` so the evidence
+   trail distinguishes them from human DENY (review-2 ADOPT-6).
 
 Result: DECISION(ESCALATE) → RESOLVED(APPROVED) → DECISION(ALLOW, ESCALATION_APPROVED).
 One approval surface, chain intact — with every clock bounded.

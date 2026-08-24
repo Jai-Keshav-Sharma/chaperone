@@ -70,6 +70,24 @@ Status: RESOLVED (pass 1 + pass 2). Date: 2026-08-23.
 | N6 org decision split | ✅ VALID | Pinned: claim GitHub org `warden` (verified FREE), fallback `wardengate` — recorded in AGENTS.md + resolution log |
 | Cosmetic step 0.5 | ✅ | Scalability scale-out path renumbered 1–5 |
 
+### Review pass 4 (review-2026-08-24.md, A–E) — resolutions
+
+| ID | Verdict | Resolution |
+|---|---|---|
+| A1 pipe mode skips hooks (#37559, #40506) | ✅ Adopted (conservative; cited issues) | threat-model + adoption-integration: headless/CI boundary; steer to gateway/shim; Bash ungovernable on that surface |
+| A2 Desktop/Cowork deny ignored on Windows (#77708) | ✅ Adopted (build-time verify) | flows/05 surface×mode matrix; doctor canary as runtime proof |
+| A3 Auto mode default (Aug 14 2026) | ✅ Adopted | flows/05 matrix + launch-narrative line ("misses 1 in 9; we show the receipt") |
+| A4 gateway cohort (Cordon, Lasso, agentgateway, MS/Docker/IBM/Bifrost) | ✅ Adopted | competitive-positioning cohort table; first-mover claim scoped to ledger+compiler+benchmark |
+| B1 client-controlled shadow mode = fail-open bypass | ✅ VALID — HIGH severity spec bug | mode removed from client request; server-side operator config (flows/08 rule 1, flows/06 config); interceptors report seam only |
+| B2 requestState ‖ concatenation violates Law 4 | ✅ VALID | HMAC over canonical_json of the tuple (flows/06) |
+| B3 identity override spoofing | ✅ VALID | agent_id pinned to authenticated key server-side; WARDEN_AGENT_ID only for hook/shim local seams (flows/06) |
+| B4 doctor enforcement canary | ✅ Adopted | flows/09: test-rule deny → invoke through real seam → verify block held |
+| C1 byte-identical metrics.json impossible | ✅ VALID | Split schema: deterministic section byte-identical; latency section epsilon band + absolute bound (flows/10, goals) |
+| C2 sample size at noise floor | ✅ VALID | ≥1,000 scenarios (benign ≥400); Wilson CIs published (flows/10, goals) |
+| C3 demo hardcoded seqs | ✅ VALID | Demo queries ledger seqs at runtime (flows/09) |
+| D body buffering / counter_key collision / TTL visibility | ✅ VALID | Max-body-size fail-closed reject + no streaming claim (flows/06); declaration_id in counter_key (data-model); TTL printed in deny message (flows/03) |
+| E cut line to flows 2/4/5/9 | ❌ REJECTED | Conflicts with the owner's explicit directive: ALL ten flows, four seams, full system — no phased cuts. Recorded, not adopted |
+
 ---
 
 ## Verdict summary

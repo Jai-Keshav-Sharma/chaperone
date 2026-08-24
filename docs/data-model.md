@@ -159,7 +159,10 @@ CREATE INDEX ix_escalations_status ON escalations(status, expires_at);
 
 ```sql
 CREATE TABLE derived_counters (
-    counter_key  VARCHAR(128) PRIMARY KEY,   -- hash of (agent_id, tool, window_start, param_path)
+    counter_key  VARCHAR(128) PRIMARY KEY,   -- hash of (declaration_id, agent_id, tool, window_start, param_path).
+                                             -- declaration_id REQUIRED in the key: two declared attributes
+                                             -- with different decision/same_agent filters would otherwise
+                                             -- collide (review-4 D)
     agent_id     VARCHAR(64) NOT NULL,
     tool         VARCHAR(128) NOT NULL,
     window_ts    INTEGER NOT NULL,           -- window start epoch

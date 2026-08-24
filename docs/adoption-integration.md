@@ -43,6 +43,11 @@ in M365, Salesforce Agentforce) are not interceptable by an external proxy — t
 Zenity's turf. Warden's wedge is the developer / framework / MCP layer, where the
 one-command install lives.
 
+Pipe-mode exception (review-4 A1): `claude -p` / `--bare` skip ALL hooks — headless/CI
+Claude on the user's own machine is NOT covered by the hook seam. Steer those users to
+the gateway/shim seams (MCP tools); Bash under pipe mode is ungovernable by the hook on
+that surface. State it, don't hide it.
+
 ## Native framework integration — core goal
 
 Target: Warden as a first-class, officially documented integration inside LangGraph
