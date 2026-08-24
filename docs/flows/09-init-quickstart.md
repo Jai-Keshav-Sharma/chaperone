@@ -40,12 +40,16 @@ Status: DECIDED. Date: 2026-08-23.
 ```
 $ warden init                              → "Warden installed. Try this:"
 $ claude --dangerously-skip-permissions    → ask the agent to "clean up" with rm -rf /
-   → BLOCK: "Warden BLOCK: starter-safety s-block-destructive (ledger #42)"
-$ warden ledger verify                     → CHAIN OK (43 entries)
+   → BLOCK: "Warden BLOCK: starter-safety s-block-destructive (ledger #N)"
+$ warden ledger verify                     → CHAIN OK (N+1 entries)
 $ claude → "refund customer 123 $450"      → ESCALATE (ticket esc_…, expires 15 min)
-$ warden approve esc_9f4c2b71             → APPROVED (ledger #47)
-$ retry the call                           → ALLOW (ESCALATION_APPROVED, ledger #48)
+$ warden approve esc_9f4c2b71             → APPROVED (ledger #N+2)
+$ retry the call                           → ALLOW (ESCALATION_APPROVED, ledger #N+3)
 ```
+
+Sequence numbers are QUERIED at runtime, never hardcoded (review-4 C3). CI asserts the
+SHAPE of this output (verdicts, message prefixes, chain-verify success), never the
+numbers (review-4 drift-4).
 
 Under five minutes, zero code changes. The user personally experiences: a block, a
 tamper-evident receipt, a human approval, a completed retry. The demo IS the onboarding.

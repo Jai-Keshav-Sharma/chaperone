@@ -126,7 +126,7 @@ MRTR is the TRANSPORT for HITL, not the HITL itself:
 | MCP framing | Official `mcp` Rust SDK (JSON-RPC 2.0 over streamable HTTP) |
 | Proxy | `axum` reverse proxy + `reqwest` upstream client, bidirectional response streaming |
 | Fast path | Mcp-Method/Mcp-Name routing; `needs_params(policy_set, tool)` from the engine |
-| Escalation | MRTR retry-native primary: signed requestState (HMAC: escalation_id ‖ expires_at ‖ params_binding_hash ‖ agent_id); client retries → verify → approved/unconsumed/params-bound → forward. Poll-and-hold ≤120s as fallback only |
+| Escalation | MRTR retry-native primary: signed requestState (HMAC over canonical_json of {escalation_id, expires_at, params_binding_hash, agent_id} — Law 4); client retries → verify → approved/unconsumed/params-bound → forward. Poll-and-hold ≤120s as fallback only |
 | Identity | agent_id is PINNED to the authenticated API key server-side (agent_api_keys.agent_id) — NO request-supplied or env-var override in gateway mode (spoofing vector; review-4 B3). WARDEN_AGENT_ID override exists ONLY for the hook/shim local seams (single-user machines, documented best-effort per aarm-mapping R6) |
 | OAuth | Transparent passthrough — zero changes to clients or servers |
 | Config | --upstream <url>, --port, WARDEN_URL. Mode (enforce|shadow) is server-side operator config, never client-supplied (review-4 B1) |

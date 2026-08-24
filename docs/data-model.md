@@ -195,4 +195,6 @@ determinism is untouched. Avoids O(window) SUM per decision as the ledger grows.
 `warden.yaml`: derived_attributes declarations (ledger_sum / ledger_count with tool, decision,
 window, same_agent filters) — consumed by the derived-context computer; webhook URL + secret;
 policy pack registry settings; **`ungoverned_default: block|allow`** (deployment policy choice,
-flows/02/09 — block for serve, allow for the local quickstart); escalation TTL; prompt bound.
+flows/02/09 — block for serve, allow for the local quickstart); escalation TTL; prompt bound;
+**`mode: enforce|shadow`** (deployment default; server-side only — never a client field.
+Per-agent/per-key mode overrides = future column, none exists in v1 tables; review-4 B1).

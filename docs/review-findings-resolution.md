@@ -1,13 +1,13 @@
 # Review Findings — Resolution Log
 
-Status: RESOLVED (pass 1 + pass 2). Date: 2026-08-23.
+Status: RESOLVED (passes 1–4 + drift fixes). Date: 2026-08-23 through 2026-08-24.
 
 ## Review pass 2 — resolutions
 
 | ID | Verdict (my independent verification) | Resolution |
 |---|---|---|
 | SPEC-1 AARM overclaim | ✅ VALID — verified against aarm.dev/spec v1.0: R4 = five decisions (ALLOW/DENY/MODIFY/STEP_UP/DEFER); Core R1–R6 MUST; Conformant requires production deployment + evidence package + ~14d TWG review + security certification | goals.md restated: claim **AARM Aligned** at launch, Core conformance post-production; new docs/aarm-mapping.md (R1–R6 → feature mapping, gaps stated honestly) |
-| SPEC-2 MRTR retry-native | ✅ VALID — verified against MCP 2026-07-28 MRTR spec: client retries with echoed requestState; servers MUST treat as attacker-controlled + integrity-protect (HMAC/AEAD) when it affects authorization | flows/06 primary path = retry-native with `requestState = HMAC(secret, escalation_id ‖ expires_at ‖ params_binding_hash ‖ agent_id)`; poll-and-hold demoted to fallback |
+| SPEC-2 MRTR retry-native | ✅ VALID — verified against MCP 2026-07-28 MRTR spec: client retries with echoed requestState; servers MUST treat as attacker-controlled + integrity-protect (HMAC/AEAD) when it affects authorization | flows/06 primary path = retry-native with signed requestState. (SUPERSEDED by pass-4 B2: HMAC over canonical_json of the tuple, never ‖ concatenation — Law 4) |
 | SPEC-3 matcher + coverage | ✅ VALID (canonical glob form confirmed; coverage-gap argument sound) | flows/05: `mcp__.*` + CI grammar assertion; WebFetch/WebSearch/NotebookEdit/Task added; Grep/Glob/TodoWrite exclusion documented with latency math; SPEC-3b updatedInput → aarm-mapping MODIFY roadmap |
 | SPEC-4 daemon lifecycle | ✅ VALID (genuine week-one footgun) | flows/09: autostart (scheduled task/launchd/systemd user) + failure UX naming remedy + `warden doctor` verb |
 | SPEC-5 context-trust | ✅ VALID | flows/02 invariant 8: context computed at trusted boundary; API never accepts verdict-influencing context from agent-controlled payloads |
@@ -87,6 +87,16 @@ Status: RESOLVED (pass 1 + pass 2). Date: 2026-08-23.
 | C3 demo hardcoded seqs | ✅ VALID | Demo queries ledger seqs at runtime (flows/09) |
 | D body buffering / counter_key collision / TTL visibility | ✅ VALID | Max-body-size fail-closed reject + no streaming claim (flows/06); declaration_id in counter_key (data-model); TTL printed in deny message (flows/03) |
 | E cut line to flows 2/4/5/9 | ❌ REJECTED | Conflicts with the owner's explicit directive: ALL ten flows, four seams, full system — no phased cuts. Recorded, not adopted |
+
+### Pass-4 drift pass (resolved same day)
+
+| Item | Fix |
+|---|---|
+| flows/08 tooling row still had client `mode` field | Rewritten: server-side operator config only; matches rule 1 |
+| flows/06 Escalation tooling row still had ‖ HMAC | Rewritten: HMAC over canonical_json (Law 4); matches the code block |
+| B1 mode had no storage location | warden.yaml gains `mode: enforce|shadow` (deployment default); per-agent/per-key override = future column, none in v1 tables |
+| flows/09 demo transcript had literal seqs | Now #N placeholders; CI asserts output SHAPE, never numbers |
+| Resolution-log SPEC-2 row had stale formula | Marked "(SUPERSEDED by pass-4 B2)"; header updated to passes 1–4 |
 
 ---
 
