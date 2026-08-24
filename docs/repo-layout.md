@@ -10,7 +10,8 @@ warden/                              # Jai-Keshav-Sharma/warden (private until l
 ├── Makefile                         # install | check | test | test-all | bench | serve | paper-figures
 ├── LICENSE / NOTICE                 # Apache-2.0 from day one
 ├── README.md                        # quickstart: warden init → 5-minute demo
-├── AGENTS.md                        # compact context for every future session (docs index + invariants)
+├── AGENTS.md                        # compact context for every future session: read-order,
+│                                    #   the 11 laws, build order, verified external facts
 │
 ├── crates/
 │   ├── warden-core/                 # the pure library — no I/O in models/ir/engine
