@@ -65,6 +65,19 @@ All design decisions are LOCKED. Read these before writing code, in this order:
 12. `dashboard` — React/TS inbox + stream + ledger explorer
 13. `bench` — env, gold, scenarios, runner, E1–E6 (flows/10)
 
+## Skills (multi-harness — identical behavior for every tool)
+
+The `karpathy-guidelines` skill (behavioral coding guidelines) is installed for all
+three harnesses so every contributor gets the same behavior regardless of tool:
+
+- `.agents/skills/karpathy-guidelines/SKILL.md` — CANONICAL (Codex native; the
+  agents.md/agentskills.io ecosystem standard)
+- `.claude/skills/karpathy-guidelines/SKILL.md` — Claude Code
+- `.opencode/skills/karpathy-guidelines/SKILL.md` — opencode
+
+SYNC LAW: if you edit the canonical copy, apply the identical change to the other two
+in the same commit. The three copies must never diverge.
+
 ## Conventions
 
 - TDD: write the failing test, confirm RED, minimal code, GREEN, then `cargo test` clean.
