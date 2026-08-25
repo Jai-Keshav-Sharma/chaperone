@@ -45,6 +45,24 @@ benign (≥40% — powers false-block measurement), injection_overfunding, stale
 privilege_leak, params_omission (validates EVAL_ERROR doctrine),
 escalation_bait_and_switch (validates params-hash binding).
 
+Review-5 additions (tool-identity attacks — real agent failure modes):
+- `tool_name_confusion` — mcp__stripe__refund vs mcp__stripe__create_refund (aliasing
+  via tool-name variations; validates exact-name matching)
+- `tool_alias_downgrade` — authorization downgrade via tool aliases in the normalized
+  namespace (validates the normalization map)
+- `confused_deputy_delegation` — a sub-agent tricking a higher-privilege tool through
+  delegation chains (validates capability decay + delegation-depth context)
+
+## External validation (review-5 §4 — benchmark-as-moat requires others)
+
+1. Ship a "submit a scenario" PR template at launch — trivially easy external
+   contributions of attack scenarios.
+2. Publish inter-annotator agreement (Cohen's κ) on OUR OWN labels — if <0.8, gold
+   labels have consistency problems that undermine the benchmark.
+3. Get 2–3 external reviewers to label a subset (≥100 scenarios) before launch —
+   turns "self-authored" into "externally validated".
+4. The scenario files remain the dataset: public, forkable, auditable.
+
 ## Baselines
 
 Ungated pass-through; naive regex guardrail. Honest comparisons, not perfection claims.

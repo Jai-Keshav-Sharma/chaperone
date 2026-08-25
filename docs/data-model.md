@@ -174,6 +174,10 @@ CREATE TABLE derived_counters (
 Updated INSIDE the ledger append transaction. Read-acceleration index only: rebuildable
 from the chain at any time; the chain remains the single source of truth, so
 determinism is untouched. Avoids O(window) SUM per decision as the ledger grows.
+Corruption-safety (review-5 §7c): a corrupted or missing counter can NEVER cause an
+incorrect ALLOW — the chain is the source of truth and the counter is rebuildable;
+worst case is a wrong-derived-context decision that hits the timeout → fail-closed,
+or a rebuild. The counter is acceleration, never correctness.
 
 ### Engine specifics (single storage path — review PERF-5)
 

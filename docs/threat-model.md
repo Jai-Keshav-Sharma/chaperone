@@ -72,6 +72,21 @@ Consequences, stated honestly:
 - Webhook HMAC secret rotation: dual-secret overlap window (new secret accepted,
   old retired after one rotation period) — same knob, one procedure.
 
+## Tool-result manipulation — explicitly OUT of scope (review-5 §2)
+
+Chaperone intercepts OUTBOUND tool calls. It does NOT defend against:
+- An MCP server returning a crafted result that manipulates the agent's next action
+  (tool-result injection / "malicious tool output" — OWASP ASI11-adjacent).
+- A tool returning fabricated data the agent trusts (e.g., a fake "refund successful"
+  that the agent acts on).
+
+That is the inbound round-trip, and it is deliberately not covered — the same
+honest-boundary move as "the hook is a seatbelt, not a jail." Without this stated
+boundary, a reviewer might assume full round-trip coverage. The defense for tool-result
+manipulation belongs to sandboxing, output validation (Guardrails-style), and the next
+outbound call being re-gated (which Chaperone DOES do — a manipulated agent still
+cannot execute an unauthorized next action).
+
 ## Escalation-key ladder (review BUG-1/2 closure)
 
 - Hook approvals happen inside the hook (hook-local resolution): DECISION(ESCALATE) →

@@ -22,11 +22,17 @@ Decision date: 2026-08-23. Owner: Jai Keshav Sharma.
 | Testing | Table-driven unit + property (`proptest`) + differential (reference evaluator == Cedar) + integration + latency bench (criterion) |
 | Packaging | Single static binary per platform (prebuilt releases + `cargo install` + brew + winget/scoop); optional `npx` shim later for hook distribution. NOTE: crate name `chaperone` is FREE on crates.io (verified); binary stays `chaperone`, crate = `chaperone`; reserve before launch (ADOPT-1) |
 | License | Apache-2.0 |
-
 ## Principles
 
-1. Rust everywhere in the decision path. One language, one binary, one trust boundary.
-2. No ML in the decision path — determinism is a provable property, not a claim.
+1. **No ML in the decision path.** The gate is 100% deterministic, replayable, and
+   auditor-verifiable — a property NO ML-based system (Zenity, Straiker, Cerbos
+   argument-aware ABAC) can claim. This is the first sentence of every technical
+   conversation, not a footnote (review-5 §7d).
+2. Rust everywhere in the decision path. One language, one binary, one trust boundary.
 3. Fail-closed always. Shadow mode is explicit opt-in, never a fallback.
-4. Extensibility via protocols (MCP), data (Policy IR), and WASM plugins — not via host-language runtime.
-5. LLM lives only in the offline compiler, and its output never activates without human approval.
+4. Extensibility via protocols (MCP), data (Policy IR), and WASM plugins — not via
+   host-language runtime.
+5. LLM lives only in the offline compiler, and its output never activates without
+   human approval.
+6. Launch comms lead with MEASURED numbers from E2, whatever they are — if cold start
+   is 8ms on Windows and 3ms on Linux, say that (review-5 §7a).

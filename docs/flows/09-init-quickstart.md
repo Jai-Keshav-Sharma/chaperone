@@ -25,8 +25,12 @@ Status: DECIDED. Date: 2026-08-23.
 - Local mode's biggest footgun is the unowned daemon: terminal closes / reboot → gate
   unreachable → fail-closed → every tool call denies.
 - Autostart (step 5 above) is the default; `chaperone init --no-autostart` opts out.
-- Failure UX names the remedy: `Chaperone: gate unreachable — run 'chaperone serve' or
-  'chaperone unhook'`.
+- Failure UX names the remedy AND the cost (review-5 §3): `Chaperone: gate unreachable —
+  run 'chaperone serve' or 'chaperone unhook'. unhook means NO audit trail and NO
+  protection — you are unguarded.` The escape hatch must exist; the message must
+  explain what escape costs.
+- Where possible, the hook logs the denial locally (JSONL spool, Flow 2 invariant 10)
+  so the user has a record even when the gate is down.
 - `chaperone doctor` validates the whole local chain: hook wiring (settings merge intact,
   matcher grammar OK), gate reachability, ledger health (chain-verify head), policy
   currency — prints fix hints. Permanent support-cost reducer + a good demo beat.

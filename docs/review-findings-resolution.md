@@ -110,6 +110,21 @@ Status: RESOLVED (passes 1–4 + drift fixes). Date: 2026-08-23 through 2026-08-
 |---|---|
 | flows/06 "raw params bytes" (fast-path + bait-and-switch) ambiguous vs the defined gateway preimage "raw HTTP body bytes" | Aligned: gateway params_hash = sha256(raw HTTP BODY bytes as received, preimage table) in all three flows/06 spots; threat-model generalized with a per-surface pointer to flows/06 |
 
+### Review pass 5 (external review) — resolutions
+
+| Item | Verdict | Resolution |
+|---|---|---|
+| Straiker + crowded MCP-gateway landscape | ✅ VERIFIED (Straiker $64M Series A, Jun 29 2026, $85M total, detection-first) | competitive-positioning: detection-first cohort table + "We prove; they detect" positioning |
+| OWASP AISVS 1.0 (Jun 24 2026) | ✅ VERIFIED (514 reqs / 14 chapters; early coverage varied) | compliance-mapping: AISVS section + pre-launch mapping action |
+| OpenAI-HF incident "unverifiable" | ❌ REVIEWER WRONG — verified via HF disclosure (Jul 16), OpenAI (Jul 21), Black Hat USA 2026 talk | Narrative kept with PRIMARY sources + precise framing (guardrails were OFF by design; deterministic layer would have stood) |
+| Tool-result manipulation boundary | ✅ VALID | threat-model: explicit out-of-scope section (inbound round-trip; next outbound call still re-gated) |
+| Daemon failure UX / unhook cost | ✅ VALID | flows/09: message states what unhook costs (no audit trail, no protection) + local JSONL spool on denial |
+| Benchmark externality | ✅ VALID | flows/10: submission PR template, κ on own labels, 2–3 external labelers, +3 attack classes (tool_name_confusion, tool_alias_downgrade, confused_deputy_delegation) |
+| Adoption friction | ✅ VALID | goals: docker run demo, WASM playground prominent, SDK/LangGraph example at launch |
+| Rate limiting | ✅ VALID | flows/02 invariant 10: per-key rate limiter, structured 429 RATE_LIMITED |
+| derived_counters corruption | ✅ VALID | data-model: counter corruption can never cause incorrect ALLOW (chain = truth, rebuildable) |
+| "No ML in decision path" prominence | ✅ VALID | tech-stack principles: elevated to principle #1 with competitor contrast; measured-numbers comms rule added |
+
 ---
 
 ## Verdict summary

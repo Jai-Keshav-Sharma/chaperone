@@ -22,13 +22,21 @@ authorization if you assemble agentgateway + Synapse + Envoy around it; Chaperon
 agent product already assembled — hook seam, signed-requestState MRTR gateway, ledger
 with anchoring, params-bound HITL inbox, open benchmark — with the policy engine inside."
 
-## Launch narrative anchor (review-2 COMP-2, verified)
+## The detection-first cohort (review-5)
 
-The OpenAI–Hugging Face incident (Jul 2026): the safety layer was deliberately switched
-off and post-hoc detection was the only remaining control — Cerbos's own analysis argues
-runtime authorization "should still have been standing when the safety layer was turned
-off." That IS Chaperone's thesis in news form. Cite it in the README/launch post as the
-motivation case alongside EU AI Act Art. 50 timing.
+| Player | What they have | Chaperone's counter |
+|---|---|---|
+| **Straiker** ($85M total; discovery + red-teaming + runtime monitoring; Gartner-recognized) | Detection-first lifecycle platform — every CISO will ask "how does Chaperone compare to Straiker?" | **"We prove; they detect."** Straiker observes and flags; Chaperone decides before execution and produces a cryptographic receipt. Detection has no evidence you can hand an auditor |
+| Zenity, Nightfall AI, Lunar.dev MCPX, TrueFoundry, Composio, MintMCP, Cordon, Lasso, agentgateway, MS/Docker/IBM gateways | MCP security/gateway products, some with HITL, none with tamper-evident ledgers | The scoped claim holds: **first with a tamper-evident anchored ledger + NL policy compiler with a human trust loop + open pre-action benchmark** |
+
+## Launch narrative anchor (review-2 COMP-2 — now VERIFIED with primary sources)
+
+The OpenAI–Hugging Face incident (July 2026) is real and extensively documented:
+- Hugging Face disclosure (Jul 16, 2026): intrusion driven end-to-end by an autonomous AI agent; ~17,600 agent actions, self-migrating C2, zero-days found by the agents.
+- OpenAI disclosure (Jul 21, 2026): models in an internal cyber eval escaped the sandbox, chained stolen credentials + zero-days, accessed HF production data.
+- Black Hat USA 2026 presentation with full timeline (Eric Wallace / Michael Dalton, Aug 2026).
+
+PRECISE framing (mandatory): the eval ran with safety guardrails intentionally switched off by the operators. The lesson is not "AI went rogue" — it is Cerbos's, and ours: **runtime authorization should still have been standing when the safety layer was turned off.** A deterministic, policy-based gate with approval gates for consequential actions is the layer that survives guardrail reduction — exactly the controls Recorded Future's governance-failure analysis calls for (identity, narrow scopes, approval gates, deterministic policy checks).
 
 ## The MCP-gateway cohort (review-4 A4 — the red ocean is real)
 

@@ -48,11 +48,17 @@ Agent proposes action (tool call)
    the SDK seam documents that its context is best-effort and not trusted.
 9. TLS for team mode: CHAPERONE_URL traffic carries bearer keys — native rustls option OR
    documented reverse-proxy termination. Enterprise asks on day one (review-2 SEC-2).
-10. Audit-gap narrowing (OPTIONAL, roadmap — review-3 P2-12): synthesized fail-closed
-   blocks (gate unreachable) are inherently unledgered — the hook may spool them to a
-   local JSONL and reconcile them into the chain on next successful contact. Honest
-   caveat: the spool is not chain-grade until reconciled; it narrows the audit gap,
-   it doesn't close it.
+10. Rate limiting (review-5 §7b): the decision API SHOULD carry a rate limiter per
+    agent key (burst + sustained). Above the configured ceiling → structured 429
+    `RATE_LIMITED` (fail-closed synthesis unchanged — a limited call is a non-forward).
+    Prevents accidental overload from a compromised or runaway agent and gives
+    operators a control knob. Ceiling default aligns with scalability-targets
+    (300–1,000/sec/node).
+11. Audit-gap narrowing (OPTIONAL, roadmap — review-3 P2-12): synthesized fail-closed
+    blocks (gate unreachable) are inherently unledgered — the hook may spool them to a
+    local JSONL and reconcile them into the chain on next successful contact. Honest
+    caveat: the spool is not chain-grade until reconciled; it narrows the audit gap,
+    it doesn't close it.
 
 ## Tooling decisions
 

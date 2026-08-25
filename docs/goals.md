@@ -33,6 +33,13 @@ global race is young.
   scripts (`curl … | sh` POSIX + PowerShell one-liner pulling prebuilt binaries);
   policy-pack registry seeded with 3–4 real packs at launch (fintech refunds, DB-guard,
   HR/PII, secrets hygiene) — empty registries don't compound.
+- Launch friction reducers (review-5 §5): a `docker run chaperone/demo` one-liner
+  booting the server + mock MCP server + a test script (watch decisions flow with
+  zero installs); the WASM playground prominently linked on the landing page (type a
+  rule → see a decision + receipt, no Claude Code needed); and a working SDK example —
+  `pip install chaperone` / `npm install @chaperone/sdk` or at minimum a runnable
+  LangGraph example — because the hook demo proves the coding-agent wedge and the SDK
+  proves the enterprise wedge.
 - Honest-numbers discipline: publish only what the benchmark measures
   (recall ≥98.5%, false-block ≤1.5%, P95 <50ms, chain verification).
 

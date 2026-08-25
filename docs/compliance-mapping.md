@@ -83,6 +83,22 @@ Compound-system doctrine (May 2026): multi-agent pipelines are assessed end-to-e
 one system — Chaperone's unified cross-agent ledger satisfies the traceability demand
 that per-agent logging cannot.
 
+## OWASP AISVS 1.0 (released Jun 24, 2026 — post-dates earlier docs)
+
+OWASP's AI Security Verification Standard: 514 testable requirements across 14 chapters
+(early third-party coverage varied — some reported 191/12; official project page is
+authoritative). Modeled on ASVS: "Verify that …" claims at three levels (L1/L2/L3).
+
+Chaperone's role: the gateway covers the RUNTIME chapters (≈4–9: request identity
+binding, prompt-injection handling, response filtering, audit logging, MCP
+authentication, tool authorization). Chapters 1–3, 10–14 (data, model, training,
+supply-chain, monitoring) sit outside our boundary — same honest-scope discipline as
+AARM.
+
+Action: full AISVS control mapping (requirement → Chaperone feature/evidence) before
+launch — same exercise as docs/aarm-mapping.md. The ledger export serves as the
+audit-evidence artifact for AISVS audit chapters.
+
 ## ISO 42001 / SOC 2 (the near-term buyers)
 
 The Digital Omnibus deferral means near-term procurement drivers are ISO 42001, SOC 2,
