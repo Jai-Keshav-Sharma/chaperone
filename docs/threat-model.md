@@ -2,9 +2,9 @@
 
 Status: DECIDED. Date: 2026-08-23. Referenced by Flow 4.
 
-## What Warden protects against — and what it doesn't
+## What Chaperone protects against — and what it doesn't
 
-Warden's honest scope, stated plainly. Saying what we don't protect is what makes the
+Chaperone's honest scope, stated plainly. Saying what we don't protect is what makes the
 protection credible.
 
 ## Layer boundaries (who can tamper with what)
@@ -20,7 +20,7 @@ protection credible.
 
 Anything running on the machine — including the agent itself, or any process with
 user-level access — can edit `.claude/settings.json`, remove the hook entry, or
-uninstall Warden. The hook protects against a MISTAKEN or manipulated agent acting
+uninstall Chaperone. The hook protects against a MISTAKEN or manipulated agent acting
 within the configured surface. It is not a jail against an ADVERSARIAL actor with
 machine access — no user-space control can be.
 
@@ -34,7 +34,7 @@ Per-host seam boundaries (review-3 P0, review-4 A1/A2):
   sessions on Windows (#77708) — enforcement varies per host SURFACE, not just
   version. The doctor canary (review-4 B4) is the runtime proof of enforcement on the
   user's actual surface.
-- Cursor: hooks DEFAULT TO FAIL-OPEN — `warden init` writes project-level
+- Cursor: hooks DEFAULT TO FAIL-OPEN — `chaperone init` writes project-level
   `.cursor/hooks.json` entries with `failClosed: true` + `timeout: 35` (verified
   cursor.com/docs/hooks). Cursor cloud agents run REPO hooks but IGNORE user-level
   hooks — hence project-level install is mandatory, and the cloud-agent boundary is
@@ -50,7 +50,7 @@ Consequences, stated honestly:
 ## Host-hook interplay (verified Aug 2026)
 
 - Claude Code PreToolUse output must nest under `hookSpecificOutput.permissionDecision`
-  (allow/deny/ask/defer). Warden emits allow/deny only (ask breaks the evidence chain —
+  (allow/deny/ask/defer). Chaperone emits allow/deny only (ask breaks the evidence chain —
   see Flow 3 hook-local approval).
 - Hooks/permissions interplay is in flux upstream (e.g., issues #39344: hook "ask"
   silently overrides permissions.deny; #36059: hook "allow" no longer overrides ask
@@ -76,7 +76,7 @@ Consequences, stated honestly:
 
 - Hook approvals happen inside the hook (hook-local resolution): DECISION(ESCALATE) →
   RESOLVED(APPROVED) → DECISION(ALLOW, ESCALATION_APPROVED). The host UI never
-  approves anything Warden can't see.
+  approves anything Chaperone can't see.
 - Every decision carries params_hash = sha256(raw bytes, per-surface preimage —
   see flows/06) — never null.
 - ESCALATE always deserializes the body (inbox visibility) and binds retries via

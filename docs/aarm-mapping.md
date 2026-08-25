@@ -18,13 +18,13 @@ verified against the published spec + conformance protocol.
 
 ## Launch claim
 
-**Warden claims AARM Aligned at launch.** Core conformance evidence is a post-production
+**Chaperone claims AARM Aligned at launch.** Core conformance evidence is a post-production
 milestone. This doc is the published mapping — partial-conformance honesty is the
 differentiator versus checklist-badge vendors.
 
-## Requirement → Warden mapping
+## Requirement → Chaperone mapping
 
-| Req | AARM requirement (MUST) | Warden status |
+| Req | AARM requirement (MUST) | Chaperone status |
 |---|---|---|
 | R1 | Pre-execution interception; deny with no effects; no fail-open bypass | ✅ hook / gateway / shim intercept before execution; fail-closed doctrine (no fail-open mode exists) |
 | R2 | Context accumulation (session context incl. stated intent + prior actions) | ⚠️ PARTIAL: derived_counters model aggregates of prior actions (budgets/velocity); stated-intent is not modeled |

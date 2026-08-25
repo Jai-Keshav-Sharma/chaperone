@@ -11,7 +11,7 @@ Engine matches an escalate rule
        {decision=ESCALATE, escalation_id, expires_at}
   → 2. Surfaced per interceptor:
        Hook:   hook-local approval flow (below) | non-interactive → deny with
-               WARDEN_ESCALATED message
+               CHAPERONE_ESCALATED message
        Gateway: MRTR retry-native (signed requestState; client retries; poll-and-hold
                 fallback ≤120s) — see flows/06
        Shim:   structured tool error (never blocks the stdio pipe)
@@ -33,7 +33,7 @@ Engine matches an escalate rule
 ## Hook-local approval (evidence-chain fix — review BUG-1)
 
 Interactive hook surfaces must NOT hand approval to the host UI. A host-approved
-"ask" lets the host run the tool WITHOUT telling Warden — the ledger would show
+"ask" lets the host run the tool WITHOUT telling Chaperone — the ledger would show
 ESCALATE → EXPIRED while the action actually executed, breaking invariant 4 and the
 EU AI Act Art. 14 evidence story.
 
@@ -46,7 +46,7 @@ Instead, on ESCALATE the hook resolves the escalation ITSELF:
 3. Approve within the bound → POST /resolve approve → ESCALATION_RESOLVED(APPROVED)
    entry → re-submit decision with escalation_id → ALLOW (ESCALATION_APPROVED) → return allow.
 4. Deny within the bound → resolve deny → ESCALATION_RESOLVED(DENIED) entry → return deny.
-5. Prompt times out (or no console available) → return deny with the WARDEN_ESCALATED
+5. Prompt times out (or no console available) → return deny with the CHAPERONE_ESCALATED
    ticket message; the escalation REMAINS PENDING. Late approval arrives via the
    CLI/dashboard inbox path, and the params-bound retry path completes it.
    The prompt bound (~30s) and the escalation TTL (900s) are independent clocks —
@@ -77,10 +77,10 @@ One approval surface, chain intact — with every clock bounded.
 | Sweeper | tokio background task, 30s interval, `expire_due()` → EXPIRED ledger entries; manual `POST /v1/escalations/expire` for deterministic tests |
 | Inbox API | axum routes: `GET /v1/escalations?status=pending`, `GET /v1/escalations/{id}`, `POST /v1/escalations/{id}/resolve {resolution, resolver, note}` — 409 if not pending |
 | Gateway MRTR | Retry-native (flows/06): InputRequiredResult + signed requestState; the CLIENT retries the original call; gateway verifies HMAC → escalation approved/unconsumed/params-bound → forwards. Poll-and-hold (≤120s) = fallback ONLY for clients that mishandle MRTR |
-| CLI | `warden approve <id>`, `warden deny <id>`, `warden escalations list` |
+| CLI | `chaperone approve <id>`, `chaperone deny <id>`, `chaperone escalations list` |
 | Notifications | Generic signed webhooks (HTTP POST, HMAC-signed payload) on escalation events; Slack/Teams = webhook-format adapters over the same mechanism |
-| Dashboard | Inbox UI: pending list, decision context (what/why/agent/derived context), expiry countdown, approve/deny + note. Team-mode auth: session token printed by `warden serve` at startup (SSO = paid tier later) — an approval inbox is NEVER unauthenticated (review-2 SEC-3) |
-| Config | `WARDEN_ESCALATION_TTL_SECONDS=900`, sweeper interval, webhook URL, webhook secret. Retention: purge resolved escalations' `proposed_params` after N days (default 30). Webhook HMAC rotation via dual-secret overlap window (review-2 SEC-6) |
+| Dashboard | Inbox UI: pending list, decision context (what/why/agent/derived context), expiry countdown, approve/deny + note. Team-mode auth: session token printed by `chaperone serve` at startup (SSO = paid tier later) — an approval inbox is NEVER unauthenticated (review-2 SEC-3) |
+| Config | `CHAPERONE_ESCALATION_TTL_SECONDS=900`, sweeper interval, webhook URL, webhook secret. Retention: purge resolved escalations' `proposed_params` after N days (default 30). Webhook HMAC rotation via dual-secret overlap window (review-2 SEC-6) |
 | Anti-fatigue | Derived-attribute budgets auto-allow within bounds; `WARN_BROAD_TARGET` lint on wide escalate rules; escalation-rate metric (target <2% of decisions); shadow mode shows would-escalate volume before enforcement |
 
 ### Infrastructure stance — no queue, no external scheduler

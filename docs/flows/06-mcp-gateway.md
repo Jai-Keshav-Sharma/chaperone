@@ -10,19 +10,19 @@ one ledger, one dashboard. Adopt at the protocol layer, coverage is company-wide
 
 ## Positioning
 
-MCP 2026-07-28 defines EMA (Enterprise Managed Authorization). Warden's line:
-"EMA says enterprises should have a managed authorization layer; Warden is the
+MCP 2026-07-28 defines EMA (Enterprise Managed Authorization). Chaperone's line:
+"EMA says enterprises should have a managed authorization layer; Chaperone is the
 open-source PDP + tamper-evident ledger an EMA deployment points at — self-hosted,
 verifiable, Apache-2.0."
 
 ## Spec features exploited
 
-| MCP 2026-07-28 feature | Warden use |
+| MCP 2026-07-28 feature | Chaperone use |
 |---|---|
 | Stateless core | Any request hits any gateway instance behind a load balancer |
 | Mcp-Method / Mcp-Name headers | Authorize on headers without parsing the body (fast path) |
 | MRTR resultType input_required | Protocol-native ESCALATE pause |
-| OAuth 2.1 resource-server model | Gateway transparent to auth flow — Warden adds AuthZ, never replaces AuthN |
+| OAuth 2.1 resource-server model | Gateway transparent to auth flow — Chaperone adds AuthZ, never replaces AuthN |
 
 ## The flow
 
@@ -75,7 +75,7 @@ it influences authorization, with the authenticated principal + short TTL + orig
 request digest inside the protected payload. Holding the request open and polling is NOT
 the native pattern.
 
-Warden's primary path (all ingredients already exist — hmac crate, escalation_id, TTL,
+Chaperone's primary path (all ingredients already exist — hmac crate, escalation_id, TTL,
 params_binding_hash):
 
 ```
@@ -132,13 +132,13 @@ MRTR is the TRANSPORT for HITL, not the HITL itself:
 | Proxy | `axum` reverse proxy + `reqwest` upstream client, bidirectional response streaming |
 | Fast path | Mcp-Method/Mcp-Name routing; `needs_params(policy_set, tool)` from the engine |
 | Escalation | MRTR retry-native primary: signed requestState (HMAC over canonical_json of {escalation_id, expires_at, params_binding_hash, agent_id} — Law 4); client retries → verify → approved/unconsumed/params-bound → forward. Poll-and-hold ≤120s as fallback only |
-| Identity | agent_id is PINNED to the authenticated API key server-side (agent_api_keys.agent_id) — NO request-supplied or env-var override in gateway mode (spoofing vector; review-4 B3). WARDEN_AGENT_ID override exists ONLY for the hook/shim local seams (single-user machines, documented best-effort per aarm-mapping R6) |
+| Identity | agent_id is PINNED to the authenticated API key server-side (agent_api_keys.agent_id) — NO request-supplied or env-var override in gateway mode (spoofing vector; review-4 B3). CHAPERONE_AGENT_ID override exists ONLY for the hook/shim local seams (single-user machines, documented best-effort per aarm-mapping R6) |
 | OAuth | Transparent passthrough — zero changes to clients or servers |
-| Config | --upstream <url>, --port, WARDEN_URL. Mode (enforce|shadow) is server-side operator config, never client-supplied (review-4 B1) |
+| Config | --upstream <url>, --port, CHAPERONE_URL. Mode (enforce|shadow) is server-side operator config, never client-supplied (review-4 B1) |
 | Body handling | params_hash requires full body buffering BEFORE the verdict: buffered by design; explicit max-body-size with fail-closed reject (memory-DoS defense). Governed calls are NOT claimed as byte-perfect streaming (review-4 D) |
 | Testing | fake_mcp_server fixture; e2e real MCP client session → allow/block/escalate wire behavior + ledger +N |
 
 ## Pitch
 
-"Point your agents at Warden once, and every MCP tool call in your company is
+"Point your agents at Chaperone once, and every MCP tool call in your company is
 authorized, escalated, and provably logged — without touching a single agent."

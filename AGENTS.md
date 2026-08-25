@@ -1,6 +1,6 @@
-# AGENTS.md — Warden build instructions (read this first)
+# AGENTS.md — Chaperone build instructions (read this first)
 
-This repo is the implementation of **Warden — the deterministic authorization gate for
+This repo is the implementation of **Chaperone — the deterministic authorization gate for
 AI agents.** Deterministic ALLOW / BLOCK / ESCALATE before every tool call, compiled
 from plain-English policy, with a tamper-evident ledger you can hand to an auditor.
 
@@ -51,7 +51,7 @@ All design decisions are LOCKED. Read these before writing code, in this order:
 
 ## Build order (bottom-up; each step's tests must pass before the next)
 
-1. `warden-core/models` — serde types: DecisionRequest/Response, Policy IR, reason codes (docs/policy-ir.md, flows/02)
+1. `chaperone-core/models` — serde types: DecisionRequest/Response, Policy IR, reason codes (docs/policy-ir.md, flows/02)
 2. `canonical.rs` + `clock.rs` + golden vectors (data-model, flows/04)
 3. `ir` — validation + lint (docs/policy-ir.md)
 4. `engine` — IR→Cedar transpile, cedar eval, reference evaluator, differential tests, needs_params, derived attributes
@@ -59,8 +59,8 @@ All design decisions are LOCKED. Read these before writing code, in this order:
 6. `storage` — schema.rs (8 tables, data-model.md), sqlx for SQLite + Postgres
 7. `decision` — DecisionService (flows/02 invariants)
 8. `escalation` — lifecycle + sweeper (flows/03)
-9. `warden-server` — axum routes (decisions, policies, escalations, ledger, health, metrics, ws)
-10. `warden-cli` — init, hook (flows/05 incl. hook-local approval + ~30s bound), gateway (flows/06 incl. retry-native MRTR + signed requestState), shim (flows/07), doctor, policy/ledger/approve commands
+9. `chaperone-server` — axum routes (decisions, policies, escalations, ledger, health, metrics, ws)
+10. `chaperone-cli` — init, hook (flows/05 incl. hook-local approval + ~30s bound), gateway (flows/06 incl. retry-native MRTR + signed requestState), shim (flows/07), doctor, policy/ledger/approve commands
 11. `compiler` — provider trait (anthropic|openai-compat|ollama|fixture), pipeline, trust loop (flows/01)
 12. `dashboard` — React/TS inbox + stream + ledger explorer
 13. `bench` — env, gold, scenarios, runner, E1–E6 (flows/10)
@@ -106,6 +106,6 @@ in the same commit. The three copies must never diverge.
   (verify per pinned host version).
 - AARM v1.0: Core R1–R6 MUST; R4 = five decisions (we ship three — see aarm-mapping).
 - EU AI Act: Art. 50 in force Aug 2 2026; Annex III deferred to Dec 2 2027.
-- crates.io: `warden` and `warden-cli` both taken; crate name TBD (candidate:
-  `warden-guard`), binary stays `warden`. GitHub org DECISION (pinned, review-3 N6):
-  claim org `warden` (verified FREE) pre-launch; fallback `wardengate`.
+- crates.io: `chaperone` is FREE (verified); binary and crate = `chaperone`; reserve
+  before launch. GitHub org DECISION (pinned, review-3 N6, updated for rename):
+  org `chaperone` is TAKEN (verified) — org candidates to re-check at launch.

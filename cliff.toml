@@ -3,7 +3,7 @@
 
 [remote.github]
 owner = "Jai-Keshav-Sharma"
-repo = "warden"
+repo = "chaperone"
 trim = true
 
 [changelog]

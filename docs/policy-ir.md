@@ -61,7 +61,7 @@ humans review it, and the engine's auxiliary services (needs_params, lint) deriv
 Operands O: {"param":"amount"} (dot path into tool params) · {"context":"request_time" | "surface" |
 "delegation_depth" | "derived.<attr>"} · {"value":200} | {"value":"main"} | {"value":[...]}
 
-Derived attributes (budgets/velocity) are declared per deployment in warden.yaml
+Derived attributes (budgets/velocity) are declared per deployment in chaperone.yaml
 (ledger_sum / ledger_count) and referenced as {"context":"derived.agent_daily_total_amount"}.
 
 ## Decision semantics (order-independent)
@@ -77,9 +77,9 @@ else                          → BLOCK    (DEFAULT_DENY)
 - Missing param / context path, or type mismatch, aborts evaluation → BLOCK (EVAL_ERROR).
   Rules are NEVER silently skipped (skipping can fall through to allow = fail-open).
 - Tool targeted by no active policy → deployment-level `ungoverned_default`:
-  `block` (default; warden serve) → BLOCK (NO_POLICY); `allow` (local quickstart) →
+  `block` (default; chaperone serve) → BLOCK (NO_POLICY); `allow` (local quickstart) →
   ALLOW (UNGOVERNED_ALLOW), loudly ledgered. This is a POLICY choice, not a failure
-  fallback — fail-closed on Warden/infra failure is untouched and non-negotiable.
+  fallback — fail-closed on Chaperone/infra failure is untouched and non-negotiable.
 - determining_rule_ids lists ALL matched rules, sorted — trivially explainable verdicts.
 
 ## Static properties derived from IR
@@ -93,8 +93,8 @@ else                          → BLOCK    (DEFAULT_DENY)
   policy SET, not per-policy; blocks activation); WARN_UNREACHABLE_ALLOW,
   WARN_TOOL_UNGOVERNED, WARN_BROAD_TARGET (surface in conflict report).
 - Cedar transpile (deterministic, snapshot-tested): allow→permit, block→forbid,
-  escalate→forbid with annotation; entity model: principal=Warden::Agent, action=Warden::Action::"call",
-  resource=Warden::Tool::"<name>", context={params, request_time, derived}.
+  escalate→forbid with annotation; entity model: principal=Chaperone::Agent, action=Chaperone::Action::"call",
+  resource=Chaperone::Tool::"<name>", context={params, request_time, derived}.
   Tool globs → `resource.name like "payments.*"`.
 
 ## Extensibility

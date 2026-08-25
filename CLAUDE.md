@@ -1,4 +1,4 @@
-# CLAUDE.md — Warden
+# CLAUDE.md — Chaperone
 
 This file exists so Claude Code follows the SAME rules as every other harness on
 this repo. The authoritative instructions live in AGENTS.md (read natively by

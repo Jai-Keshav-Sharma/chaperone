@@ -55,6 +55,6 @@ when traffic demands. Never pre-build scale we can't measure.
 
 ## Competitor context
 
-- OAP (research): 53ms median over 1,000 decisions. Warden targets <50ms P95 at thousands/sec.
+- OAP (research): 53ms median over 1,000 decisions. Chaperone targets <50ms P95 at thousands/sec.
 - Arcade: 25x tool-call growth, but OAuth checks — no sync audit chain, no fsync tax.
 - Zenity: Kafka event streams — more ingest, fewer guarantees (detection-first, not prevention-first).

@@ -81,4 +81,4 @@ decides, per deployment and per policy:
 - LLM can fail loudly, never silently (validation chain + human gate).
 - Activated policies are frozen bytes pinned by policy_hash; edits create new versions.
 - Compiler never invents thresholds: ambiguity → escalate rule flagged → human decides.
-- Two authoring paths: LLM-compiled (SOPs) and hand-written IR (warden policy edit).
+- Two authoring paths: LLM-compiled (SOPs) and hand-written IR (chaperone policy edit).

@@ -21,7 +21,7 @@ bench/
              (benign ≥400; review-4 C2)
   attacks/   deterministic scripted generators (boundary probing, unit swaps, tool aliases,
              delegation spoofing, stale-policy rig, bait-and-switch)
-  runner     boots a REAL warden serve (fresh tmp DB), activates gold policies, replays
+  runner     boots a REAL chaperone serve (fresh tmp DB), activates gold policies, replays
              scenarios via the HTTP decision API directly (isolates measured latency;
              interceptor correctness has its own e2e tests)
   metrics.json  fixed key order: block_recall, false_block_rate, escalation_accuracy,
@@ -51,7 +51,7 @@ Ungated pass-through; naive regex guardrail. Honest comparisons, not perfection 
 
 ## Experiments (paper figures)
 
-- E1 Enforcement efficacy — Warden vs ungated vs regex baseline
+- E1 Enforcement efficacy — Chaperone vs ungated vs regex baseline
 - E2 Latency overhead — P95 added latency, sqlite vs postgres, CDF plot
 - E3 Policy currency — stale-policy window after mid-run activation vs cache TTL
 - E4 Compiler fidelity — each gold SOP compiled 5×; agreement with gold labels + inter-run stability

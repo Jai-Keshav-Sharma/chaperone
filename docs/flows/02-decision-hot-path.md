@@ -19,7 +19,7 @@ Agent proposes action (tool call)
        | else BLOCK (DEFAULT_DENY). Eval error → BLOCK (EVAL_ERROR).
        Tool governed by no active policy → ungoverned handling (deployment choice,
        NEVER a failure fallback):
-         ungoverned_default: block (default; warden serve) → BLOCK (NO_POLICY)
+         ungoverned_default: block (default; chaperone serve) → BLOCK (NO_POLICY)
          ungoverned_default: allow (local quickstart)  → ALLOW (UNGOVERNED_ALLOW,
          loudly ledgered; dashboard + shadow stats push toward policy coverage)
   → 5. SYNCHRONOUS ledger append (before any response) → seq + entry_hash
@@ -46,7 +46,7 @@ Agent proposes action (tool call)
    boundary — the hook/gateway derive them; the decision API never accepts them from
    agent-controlled payloads. In team mode the gateway derives delegation_depth itself;
    the SDK seam documents that its context is best-effort and not trusted.
-9. TLS for team mode: WARDEN_URL traffic carries bearer keys — native rustls option OR
+9. TLS for team mode: CHAPERONE_URL traffic carries bearer keys — native rustls option OR
    documented reverse-proxy termination. Enterprise asks on day one (review-2 SEC-2).
 10. Audit-gap narrowing (OPTIONAL, roadmap — review-3 P2-12): synthesized fail-closed
    blocks (gate unreachable) are inherently unledgered — the hook may spool them to a

@@ -4,7 +4,7 @@ Status: ALIGNED. Date: 2026-08-23. Owner: Jai Keshav Sharma.
 
 ## North star
 
-Build and release Warden — the open-source, deterministic authorization gate for AI
+Build and release Chaperone — the open-source, deterministic authorization gate for AI
 agents — as the product that proves, with evidence, that autonomous agents can be
 deployed safely; and be the first mover in India's agent-governance layer while the
 global race is young.
@@ -23,10 +23,10 @@ global race is young.
 
 - Public release: repo + docs + demo + landing narrative, Show-HN-ready,
   positioned as "Seatbelts for `--dangerously-skip-permissions`".
-- Five-minute wow: warden init → rm -rf blocked with ledger receipt → refund escalated
+- Five-minute wow: chaperone init → rm -rf blocked with ledger receipt → refund escalated
   → approve → retry. The demo IS the pitch.
 - Launch assets: interactive browser demo (wasm-compiled engine — type a rule, watch
-  a decision + receipt render, no signup); `warden-policy-test` GitHub Action (the
+  a decision + receipt render, no signup); `chaperone-policy-test` GitHub Action (the
   "CI for policies" as a free Action — diff-aware: lint/test/replay the changed policy
   against the PR diff, "your SOP change gets tested in CI like code"); Windows
   first-class (winget/scoop, CI OS matrix) — the dev platform is Windows; installer
@@ -40,12 +40,12 @@ global race is young.
 
 - Win the unowned wedge: trust loop + anchored ledger + open benchmark — not the
   funded competitors' breadth game (Zenity/PlainID/Arcade/AWS/Microsoft).
-- Determinism as the differentiator: everyone claims authorization; Warden's decisions
+- Determinism as the differentiator: everyone claims authorization; Chaperone's decisions
   are replayable and auditor-verifiable — proven, not asserted.
 - Distribution: bottom-up (free OSS, hook adapter) → team (committed config) →
   enterprise (gateway + central service + compliance evidence).
 - India first-mover narrative on the local demand curve (EY / RBI / SEBI / MeitY).
-- Native framework integration: Warden as a first-class, officially documented option
+- Native framework integration: Chaperone as a first-class, officially documented option
   inside LangGraph (then OpenAI Agents SDK, CrewAI, ADK).
 - **AARM: claim "Aligned" at launch; target Core conformance post-production.** AARM —
   Autonomous Action Runtime Management — is the Vanta-authored spec (arXiv:2602.09433,
@@ -63,11 +63,11 @@ global race is young.
   control-mapping exercise once the AARM mapping exists.
 - **EMA positioning nuance** (verified): EMA makes the IdP authoritative for *server
   access* via ID-JAG exchange; it never inspects traffic. State it explicitly:
-  "AuthN/coarse-grant lives in the IdP (EMA); per-call AuthZ + proof lives in Warden."
+  "AuthN/coarse-grant lives in the IdP (EMA); per-call AuthZ + proof lives in Chaperone."
 
 ### 4. Research (paper + dataset)
 
-- Paper (draft exists: warden_paper.pdf, 5pp, CSVTU Bhilai): update §IV against the
+- Paper (draft exists: chaperone_paper.pdf, 5pp, CSVTU Bhilai): update §IV against the
   locked spec (remove the LLM slow path, fix the hash formula, fix latency hierarchy
   and citations) and complete §V with E1–E6 measured results.
 - Dataset = the benchmark corpus (Flow 10): scenarios.jsonl + gold policies + gold SOPs,

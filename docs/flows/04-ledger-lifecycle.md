@@ -49,7 +49,7 @@ Layer 3  External anchoring   (optional, Rekor/TSA)    detects rewrites even by 
 The chain alone detects modification of past entries by anyone without DB write access to
 every subsequent row; chain + signed checkpoints detects rewrites unless the attacker also
 holds the signing key; + external anchoring detects rewrites even by the key holder after
-the anchoring interval. Warden does not defend against an attacker who controls the
+the anchoring interval. Chaperone does not defend against an attacker who controls the
 decision service AT DECISION TIME — that boundary belongs to the interceptor/deployment.
 Saying what we don't protect is what makes the protection credible.
 
@@ -65,11 +65,11 @@ Saying what we don't protect is what makes the protection credible.
 | Rekor anchoring | `reqwest` against Rekor v2 HTTP API |
 | TSA anchoring | `ts-rfc3161` crate |
 | Storage | `ledger_entries` + `ledger_checkpoints` tables (same relational store); checkpoints store signed text + anchor receipts |
-| Verify CLI | `warden ledger verify [--from N --to M]` → CHAIN OK (N entries) / CHAIN BROKEN at seq K: <reason> |
-| Proofs CLI | `warden ledger prove --seq N` → JSON bundle (leaf + path + root + checkpoint + signature + pubkey), verifiable offline |
-| Export CLI | `warden ledger export --format eu-ai-act|soc2` → zip: entries + checkpoints + proofs + policy versions + manifest mapping to regulation clauses |
+| Verify CLI | `chaperone ledger verify [--from N --to M]` → CHAIN OK (N entries) / CHAIN BROKEN at seq K: <reason> |
+| Proofs CLI | `chaperone ledger prove --seq N` → JSON bundle (leaf + path + root + checkpoint + signature + pubkey), verifiable offline |
+| Export CLI | `chaperone ledger export --format eu-ai-act|soc2` → zip: entries + checkpoints + proofs + policy versions + manifest mapping to regulation clauses |
 | Golden vectors | Fully-specified entry + exact digest pinned as test literals; hash spec can never drift silently |
-| Config | WARDEN_CHECKPOINT_INTERVAL_ENTRIES=1000, WARDEN_CHECKPOINT_INTERVAL_SECONDS=300, signing key path, Rekor/TSA URLs |
+| Config | CHAPERONE_CHECKPOINT_INTERVAL_ENTRIES=1000, CHAPERONE_CHECKPOINT_INTERVAL_SECONDS=300, signing key path, Rekor/TSA URLs |
 
 ## Summary
 

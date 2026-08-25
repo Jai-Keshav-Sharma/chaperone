@@ -146,7 +146,7 @@ CREATE TABLE escalations (
     resolver        VARCHAR(64),
     resolution_note TEXT,
     created_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    expires_at      TIMESTAMP NOT NULL,            -- created_at + WARDEN_ESCALATION_TTL_SECONDS (900)
+    expires_at      TIMESTAMP NOT NULL,            -- created_at + CHAPERONE_ESCALATION_TTL_SECONDS (900)
     resolved_at     TIMESTAMP,
     decision_entry_seq   INTEGER REFERENCES ledger_entries(entry_seq),
     resolution_entry_seq INTEGER REFERENCES ledger_entries(entry_seq),
@@ -192,7 +192,7 @@ determinism is untouched. Avoids O(window) SUM per decision as the ledger grows.
 
 ## Runtime config (not DB)
 
-`warden.yaml`: derived_attributes declarations (ledger_sum / ledger_count with tool, decision,
+`chaperone.yaml`: derived_attributes declarations (ledger_sum / ledger_count with tool, decision,
 window, same_agent filters) — consumed by the derived-context computer; webhook URL + secret;
 policy pack registry settings; **`ungoverned_default: block|allow`** (deployment policy choice,
 flows/02/09 — block for serve, allow for the local quickstart); escalation TTL; prompt bound;

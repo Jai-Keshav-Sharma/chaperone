@@ -30,7 +30,7 @@ WOULD_ALLOW / WOULD_BLOCK / WOULD_ESCALATE.
 
 | Concern | Choice |
 |---|---|
-| Mode selection | Server-side operator config ONLY (warden.yaml deployment default; per-agent/per-key overrides = future column). NO client field in the request — an agent cannot self-exempt (review-4 B1; this row must match rule 1) |
+| Mode selection | Server-side operator config ONLY (chaperone.yaml deployment default; per-agent/per-key overrides = future column). NO client field in the request — an agent cannot self-exempt (review-4 B1; this row must match rule 1) |
 | Ledger | WOULD_* decision enum values, same append path |
 | Dashboard | would-block / would-escalate rates vs actual |
 

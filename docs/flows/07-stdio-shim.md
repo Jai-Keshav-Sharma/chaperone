@@ -5,12 +5,12 @@ Status: DECIDED. Date: 2026-08-23.
 ## Purpose
 
 Desktop MCP clients configure servers as command lines over stdio, not HTTP URLs.
-The shim wraps the child server process so such clients get Warden by changing one
+The shim wraps the child server process so such clients get Chaperone by changing one
 command line.
 
 ```
 BEFORE:  "command": "npx @stripe/mcp-server"
-AFTER:   "command": "warden shim -- npx @stripe/mcp-server"
+AFTER:   "command": "chaperone shim -- npx @stripe/mcp-server"
 ```
 
 ## Flow
@@ -20,7 +20,7 @@ AFTER:   "command": "warden shim -- npx @stripe/mcp-server"
 3. tools/call intercepted, same decision mapping as the gateway:
    - ALLOW → forward to child, stream result back (invisible)
    - BLOCK → MCP tool error with structured reason + ledger ref
-   - ESCALATE → tool error: WARDEN_ESCALATED: approval required (escalation_id, expires).
+   - ESCALATE → tool error: CHAPERONE_ESCALATED: approval required (escalation_id, expires).
      Retry the identical call after approval.
 
 ## Design trap — no MRTR pause on stdio
@@ -42,10 +42,10 @@ Same decisions, same ledger, different wiring.
 | MCP transport | Official `mcp` SDK stdio transport |
 | Decision mapping | Shared mapping module as hook/gateway (one code path) |
 | Escalation | Structured tool error + Flow 3 retry path — never block the pipe |
-| Identity | WARDEN_AGENT_ID env; fallback unknown-agent (policy-blockable) |
+| Identity | CHAPERONE_AGENT_ID env; fallback unknown-agent (policy-blockable) |
 | Testing | Fake child MCP server fixture; e2e client session → allow/block/escalate + ledger +N |
 
 ## Pitch
 
-"Desktop MCP clients get Warden by changing one command line — same gate, same ledger,
+"Desktop MCP clients get Chaperone by changing one command line — same gate, same ledger,
 zero code."

@@ -7,7 +7,7 @@ Status: DECIDED. Date: 2026-08-23. Answers the questions launch will actually ge
 The first Show HN comment will be about the policy-engine cohort, not the platforms.
 The answer:
 
-| Capability | OPA | Cerbos | Oso | **Warden** |
+| Capability | OPA | Cerbos | Oso | **Chaperone** |
 |---|---|---|---|---|
 | Policy decision engine | Yes (Rego, general-purpose) | Yes (CEL over YAML) | Yes (Polar) | Yes (IR → Cedar, formally verified) |
 | Built for AGENTS (tool-call interception) | No — you wire it yourself | Strong — agentgateway + Synapse over Envoy ext_authz: argument-aware ABAC, MCP `initialize`-gating, task-scoped kill switch (Jun–Jul 2026) | Partial | **Native: hooks, MCP gateway, shim, framework middleware — four seams** |
@@ -15,10 +15,10 @@ The answer:
 | Tamper-evident ledger (hash chain + signed Merkle checkpoints + Rekor/TSA anchoring) | No (logs to your stack) | No (plain Hub decision logs) | No | **Yes — auditor-verifiable offline** |
 | ESCALATE → human approval lifecycle (inbox, expiry, params binding) | No | No | No | **Yes** |
 | Deterministic replay of historical decisions | Possible with work | No | No | **Yes — byte-for-byte replay is a shipped command** |
-| Open benchmark for pre-action authorization | No | No | No | **Yes — the metric class Warden defines** |
+| Open benchmark for pre-action authorization | No | No | No | **Yes — the metric class Chaperone defines** |
 
 One-liner (updated for Cerbos's real 2026 posture): "Cerbos gives you argument-aware
-authorization if you assemble agentgateway + Synapse + Envoy around it; Warden is the
+authorization if you assemble agentgateway + Synapse + Envoy around it; Chaperone is the
 agent product already assembled — hook seam, signed-requestState MRTR gateway, ledger
 with anchoring, params-bound HITL inbox, open benchmark — with the policy engine inside."
 
@@ -27,14 +27,14 @@ with anchoring, params-bound HITL inbox, open benchmark — with the policy engi
 The OpenAI–Hugging Face incident (Jul 2026): the safety layer was deliberately switched
 off and post-hoc detection was the only remaining control — Cerbos's own analysis argues
 runtime authorization "should still have been standing when the safety layer was turned
-off." That IS Warden's thesis in news form. Cite it in the README/launch post as the
+off." That IS Chaperone's thesis in news form. Cite it in the README/launch post as the
 motivation case alongside EU AI Act Art. 50 timing.
 
 ## The MCP-gateway cohort (review-4 A4 — the red ocean is real)
 
 Routing/auth/observability gateways, none with tamper-evident ledgers:
 
-| Player | What they have | Gap vs Warden |
+| Player | What they have | Gap vs Chaperone |
 |---|---|---|
 | Cordon (runany.dev, Jul 2026) | OSS MCP security gateway, PBAC + HITL approvals — closest OSS overlap | No ledger/anchoring, no NL compiler, no benchmark |
 | Lasso MCP Gateway (OSS) | Security-centric MCP gateway (Portkey partnership Feb 2026) | Gateway only; no decision ledger |
@@ -47,7 +47,7 @@ ledger + NL policy compiler with a human trust loop + open pre-action benchmark.
 
 ## The funded platform cohort (research, Aug 2026)
 
-| Player | Owns | Warden's counter |
+| Player | Owns | Chaperone's counter |
 |---|---|---|
 | Zenity ($125M C) | SaaS-agent governance + intent-aware detection | Deterministic, replayable, self-hosted, OSS — "we prove, they detect" |
 | PlainID | IAM-heritage PBAC, live at 2 US banks | NL compiler + trust loop, cryptographic ledger, open benchmark |
@@ -64,10 +64,10 @@ ledger + NL policy compiler with a human trust loop + open pre-action benchmark.
 - FINRA 2026 report calls for human checkpoints before agent execution — cite as a
   US-regulatory catalyst alongside the EU timeline.
 - Gartner "Guardian Agents" Market Guide (Feb 2026) = the analyst category exists;
-  AARM (CSA, Vanta-donated) = the conformance category exists. Warden rides both.
+  AARM (CSA, Vanta-donated) = the conformance category exists. Chaperone rides both.
 
 ## Category identity
 
-Warden is to agent authorization what OPA was to policy: the neutral, open,
+Chaperone is to agent authorization what OPA was to policy: the neutral, open,
 self-hostable standard gate — with the must-have paid layer OPA never had
 (compliance evidence), so it avoids the Styra failure mode.

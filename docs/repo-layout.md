@@ -5,16 +5,16 @@ Status: DECIDED. Date: 2026-08-23. Workspace: Cargo (Rust), one binary.
 ## Tree
 
 ```
-warden/                              # Jai-Keshav-Sharma/warden (private until launch)
+chaperone/                              # Jai-Keshav-Sharma/chaperone (private until launch)
 ├── Cargo.toml                       # workspace root
 ├── Makefile                         # install | check | test | test-all | bench | serve | paper-figures | changelog
 ├── LICENSE / NOTICE                 # Apache-2.0 from day one
-├── README.md                        # quickstart: warden init → 5-minute demo
+├── README.md                        # quickstart: chaperone init → 5-minute demo
 ├── AGENTS.md                        # compact context for every future session: read-order,
 │                                    #   the 11 laws, build order, verified external facts
 │
 ├── crates/
-│   ├── warden-core/                 # the pure library — no I/O in models/ir/engine
+│   ├── chaperone-core/                 # the pure library — no I/O in models/ir/engine
 │   │   └── src/
 │   │       ├── models/              # decision, ir, ledger entry, escalation, reason codes (serde, strict)
 │   │       ├── canonical.rs         # canonical_dumps + sha256_hex — the ONLY hashing path
@@ -32,10 +32,10 @@ warden/                              # Jai-Keshav-Sharma/warden (private until l
 │   │       ├── docs/                # document parsers (md/txt/pdf/docx/html + OCR tiers)
 │   │       └── decision/            # DecisionService orchestration (Flow 2, fail-closed)
 │   │
-│   ├── warden-server/               # LIBRARY crate (axum app factory + routes) — consumed by the
+│   ├── chaperone-server/               # LIBRARY crate (axum app factory + routes) — consumed by the
 │   │                                #   cli's `serve` subcommand; ships NO binary of its own.
-│   │                                #   Exactly ONE binary ships, named `warden` (review-3 P2-9)
-│   └── warden-cli/                  # the `warden` binary — clap verbs per docs/tech-stack.md
+│   │                                #   Exactly ONE binary ships, named `chaperone` (review-3 P2-9)
+│   └── chaperone-cli/                  # the `chaperone` binary — clap verbs per docs/tech-stack.md
 │                                    #   (canonical list; this comment is not authoritative)
 │
 ├── policies/

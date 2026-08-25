@@ -8,14 +8,14 @@ The wow-demo surface: one command gates a coding agent's shell, file, and MCP ac
 even under `--dangerously-skip-permissions`. Hooks run regardless of permission mode —
 the model gets no vote.
 
-## Wiring (warden init)
+## Wiring (chaperone init)
 
-`warden init` merges (never clobbers) one entry into `.claude/settings.json` (+ Cursor config):
+`chaperone init` merges (never clobbers) one entry into `.claude/settings.json` (+ Cursor config):
 
 ```json
 { "hooks": { "PreToolUse": [
     { "matcher": "Bash|Write|Edit|Read|WebFetch|WebSearch|NotebookEdit|Task|mcp__.*",
-      "hooks": [{ "type": "command", "command": "warden hook" }] }
+      "hooks": [{ "type": "command", "command": "chaperone hook" }] }
 ]}}
 ```
 
@@ -34,18 +34,18 @@ Matcher coverage is deliberate (review-2 SPEC-3):
 ## Cursor wiring (fail-closed by config — review-3 P0)
 
 Cursor's hooks DEFAULT TO FAIL-OPEN (verified cursor.com/docs/hooks): crash, timeout,
-or invalid JSON → action proceeds, unless the entry sets `failClosed: true`. `warden
+or invalid JSON → action proceeds, unless the entry sets `failClosed: true`. `chaperone
 init` therefore writes PROJECT-level `.cursor/hooks.json` entries that are explicitly
 fail-closed — this is a Law-1 requirement, not a preference:
 
 ```json
 { "version": 1, "hooks": {
     "beforeShellExecution": [
-      { "command": "warden hook", "timeout": 35, "failClosed": true } ],
+      { "command": "chaperone hook", "timeout": 35, "failClosed": true } ],
     "beforeMCPExecution": [
-      { "command": "warden hook", "timeout": 35, "failClosed": true } ],
+      { "command": "chaperone hook", "timeout": 35, "failClosed": true } ],
     "beforeReadFile": [
-      { "command": "warden hook", "timeout": 35, "failClosed": true } ]
+      { "command": "chaperone hook", "timeout": 35, "failClosed": true } ]
 }}
 ```
 
@@ -53,7 +53,7 @@ fail-closed — this is a Law-1 requirement, not a preference:
   ~30s hook-local approval prompt mid-flow; the bound must sit ABOVE the prompt bound.
 - PROJECT-level (`.cursor/hooks.json`), never user-level: Cursor cloud agents run repo
   hooks but IGNORE user-level hooks (threat-model notes this boundary).
-- Cursor outcome set is allow/ask/deny; Warden emits allow/deny only (ask hands
+- Cursor outcome set is allow/ask/deny; Chaperone emits allow/deny only (ask hands
   approval to the host UI — same evidence-chain rule as Claude Code). Exit code 2 ≡ deny.
 - BUILD-TIME VERIFICATION (review-3 N4): `beforeReadFile` permission-honoring is
   UNVERIFIED — official docs list it, but independent Jul 2026 analyses report only
@@ -69,32 +69,32 @@ fail-closed — this is a Law-1 requirement, not a preference:
 - Out (stdout JSON): decision MUST be nested under hookSpecificOutput (top-level fields
   are ignored for PreToolUse — review BUG-4):
   `{"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "allow"|"deny"|"ask"|"defer", "permissionDecisionReason": "..."}}`
-- The host outcome set has FOUR values (allow/deny/ask/defer); Warden emits only
+- The host outcome set has FOUR values (allow/deny/ask/defer); Chaperone emits only
   allow and deny — `ask` would hand approval to the host UI and break the evidence
   chain (Flow 3 hook-local approval instead); `defer` is for chained handlers and unused.
 
 ## Steps
 
-1. Host invokes `warden hook` per PreToolUse event (cold-start TARGET ~1ms; measured in E2 — Windows process spawn is several ms, review-3 N5).
+1. Host invokes `chaperone hook` per PreToolUse event (cold-start TARGET ~1ms; measured in E2 — Windows process spawn is several ms, review-3 N5).
 2. Tool name normalized to the universal namespace (one policy language governs every
    surface): Bash → shell.exec, Write/Edit → fs.write, Read → fs.read,
    mcp__stripe__refund → mcp.stripe.refunds.create, WebFetch → web.fetch,
    WebSearch → web.search, NotebookEdit → notebook.edit, Task → task.spawn.
    Policies can target every gated tool by its universal name (review-3 P1-1).
-3. DecisionRequest built: request_id (UUIDv4 at boundary), agent_id (WARDEN_AGENT_ID or host
+3. DecisionRequest built: request_id (UUIDv4 at boundary), agent_id (CHAPERONE_AGENT_ID or host
    session identity), context.surface = claude_code|cursor.
-4. Decision service called (localhost / WARDEN_URL), 1000ms timeout.
+4. Decision service called (localhost / CHAPERONE_URL), 1000ms timeout.
 5. Verdict mapped:
 
-| Warden | Hook output | User experience |
+| Chaperone | Hook output | User experience |
 |---|---|---|
 | ALLOW | allow (silent) | Zero friction, ~40–75ms total overhead |
-| BLOCK | deny + "Warden BLOCK: pol r-id (ledger #14921)" | Refused; agent sees reason + ledger receipt |
+| BLOCK | deny + "Chaperone BLOCK: pol r-id (ledger #14921)" | Refused; agent sees reason + ledger receipt |
 | ESCALATE | Hook-local approval: interactive console prompt inside the hook → approve → resolve entry → re-submit → ALLOW (ESCALATION_APPROVED) → return allow | Approval happens INSIDE the hook so the RESOLVED entry exists before the host runs anything (Flow 3 invariant 4) |
 | Gate unreachable | deny (FAIL_CLOSED_GATE_UNREACHABLE) | Fail-closed: no gate, no action |
 | Shadow mode | allow + ledgered WOULD_* | Invisible observation |
 
-## Starter-safety pack (shipped by warden init)
+## Starter-safety pack (shipped by chaperone init)
 
 | Rule | Effect |
 |---|---|
@@ -107,7 +107,7 @@ fail-closed — this is a Law-1 requirement, not a preference:
 | Benign namespace — fs.read / Read tool, ls/grep/cat within the workspace, git status, safe web reads | allow |
 
 The pack covers the FULL normalized namespace with explicit low-risk allow rules, so
-nothing falls to NO_POLICY after `warden init` (review BUG-3). Single source of truth:
+nothing falls to NO_POLICY after `chaperone init` (review BUG-3). Single source of truth:
 this table == Flow 9's pack description.
 
 ## Tooling
@@ -118,10 +118,10 @@ this table == Flow 9's pack description.
 | Normalization | Own mapping module — single source of truth for tool namespaces, exhaustively unit-tested |
 | HTTP | `ureq` (blocking, no async runtime — a one-shot hook process doesn't need tokio; faster cold start than reqwest+tokio init) + 1000ms timeout + fail-closed synthesis on any error |
 | Bypass-mode verification | e2e test MUST cover `--dangerously-skip-permissions`: hook deny honored in bypass mode. Upstream hooks/permissions interplay is in flux (e.g. issues #39344, #36059) — verify against the installed host version before the launch demo leans on it |
-| Surface × mode matrix (review-4 A2/A3) | Enforcement diverges per host SURFACE, not just version: (a) `claude -p` / `--bare` pipe mode SKIPS ALL hooks (#37559, #40506) — steer CI users to the gateway/shim seams; Bash under pipe mode is ungovernable by the hook seam; (b) PreToolUse deny reportedly ignored in Claude Desktop/Cowork on Windows (#77708) — verify; (c) AUTO permission mode became the DEFAULT (Aug 14, 2026) — verify hooks still fire under auto mode; if yes, Warden's TAM is the default mode, not an edge flag. The `warden doctor` canary (flows/09, review-4 B4) is the runtime proof for all of these |
+| Surface × mode matrix (review-4 A2/A3) | Enforcement diverges per host SURFACE, not just version: (a) `claude -p` / `--bare` pipe mode SKIPS ALL hooks (#37559, #40506) — steer CI users to the gateway/shim seams; Bash under pipe mode is ungovernable by the hook seam; (b) PreToolUse deny reportedly ignored in Claude Desktop/Cowork on Windows (#77708) — verify; (c) AUTO permission mode became the DEFAULT (Aug 14, 2026) — verify hooks still fire under auto mode; if yes, Chaperone's TAM is the default mode, not an edge flag. The `chaperone doctor` canary (flows/09, review-4 B4) is the runtime proof for all of these |
 | Windows approval matrix | Hook-local approval (Flow 3) verified across Windows Terminal, VS Code integrated terminal, git-bash, WSL-invoked claude (review-2 ADOPT-6). Headless `-p`/CI → no console → auto-deny with a DISTINCT reason code `DENY_NO_CONSOLE` (evidence trail distinguishes it from a human DENY) |
 | Roadmap | `updatedInput` (host-supported input rewriting paired with allow) = future MODIFY / redact-and-allow enforcement surface (closes AARM R4-MODIFY, see docs/aarm-mapping.md). Host now exposes ~31 hook events (Setup, PermissionRequest, PermissionDenied, PostToolUseFailure, SubagentStart, ConfigChange…) — PreToolUse is not the only seam; PostToolUseFailure pairs naturally with ledger outcome-correlation later |
-| Binary | Same `warden` binary (clap subcommand) — no interpreter; cold-start TARGET ~1ms, measured in E2 (review-3 N5) |
+| Binary | Same `chaperone` binary (clap subcommand) — no interpreter; cold-start TARGET ~1ms, measured in E2 (review-3 N5) |
 | init | Careful JSON merge; writes starter pack; prints 3-command demo; never writes outside target project dir |
 | Idempotency | request_id UUIDv4 at hook boundary |
 | Testing | Table-driven event→request→verdict matrix; e2e subprocess test: `rm -rf /` event → deny with ledger ref |
