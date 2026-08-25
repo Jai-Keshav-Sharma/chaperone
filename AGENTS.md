@@ -13,14 +13,16 @@ All design decisions are LOCKED. Read these before writing code, in this order:
 
 1. `docs/goals.md` — what we're building and why (north star, horizons, OSS/paid split, paper/dataset)
 2. `docs/tech-stack.md` — the stack (Rust core + Cedar, sqlx-only storage, React dashboard)
-3. `docs/flows/01..10` — the ten flows; the system IS these flows
-4. `docs/data-model.md` — 8 tables, append-only ledger
-5. `docs/policy-ir.md` — the rule language (compiler output + engine input)
-6. `docs/repo-layout.md` — crate structure
-7. `docs/threat-model.md` — honest boundaries
-8. `docs/compliance-mapping.md` + `docs/aarm-mapping.md` — the standards story
-9. `docs/competitive-positioning.md`, `docs/adoption-integration.md`, `docs/scalability-targets.md`
-10. `docs/review-findings-resolution.md` — every external-review finding and its fix
+3. `docs/api-contracts.md` — the FROZEN wire formats (DecisionRequest/Response, reason codes)
+4. `docs/flows/01..10` — the ten flows; the system IS these flows
+5. `docs/data-model.md` — 8 tables, append-only ledger
+6. `docs/policy-ir.md` — the rule language (compiler output + engine input)
+7. `docs/build-plan.md` — the task-level execution plan (phases, contracts, tests, DoD)
+8. `docs/repo-layout.md` — crate structure
+9. `docs/threat-model.md` — honest boundaries
+10. `docs/compliance-mapping.md` + `docs/aarm-mapping.md` — the standards story
+11. `docs/competitive-positioning.md`, `docs/adoption-integration.md`, `docs/scalability-targets.md`
+12. `docs/review-findings-resolution.md` — every external-review finding and its fix
 
 ## The laws (non-negotiable; any code violating these is wrong)
 
