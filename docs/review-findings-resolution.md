@@ -1,6 +1,6 @@
 # Review Findings — Resolution Log
 
-Status: RESOLVED (passes 1–4 + drift fixes). Date: 2026-08-23 through 2026-08-24.
+Status: RESOLVED (passes 1–6 + drift fixes). Date: 2026-08-23 through 2026-08-25.
 
 ## Review pass 2 — resolutions
 
