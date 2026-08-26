@@ -72,6 +72,18 @@ Consequences, stated honestly:
 - Webhook HMAC secret rotation: dual-secret overlap window (new secret accepted,
   old retired after one rotation period) — same knob, one procedure.
 
+## Windows Smart App Control (SAC) — signed releases, honest boundary (recorded 2026-08-25)
+
+- SAC (Windows 11) blocks unsigned locally-compiled binaries by default. Release
+  binaries MUST be **Authenticode code-signed** (Azure Trusted Signing, free for OSS)
+  so they pass SAC/WDAC on enforce-mode machines — a fail-closed hook that SAC blocks
+  would brick every tool call on a fresh Win11 box.
+- This is DISTINCT from cosign/Sigstore supply-chain signing (which SAC does not read):
+  both are required — Authenticode for OS-level acceptance, cosign/SBOM for provenance.
+- Honest boundary, stated plainly: **signed release binaries work on SAC-enforce
+  machines; `cargo install` / source builds on those machines require SAC off.** Same
+  discipline as every other boundary in this document.
+
 ## Tool-result manipulation — explicitly OUT of scope (review-5 §2)
 
 Chaperone intercepts OUTBOUND tool calls. It does NOT defend against:

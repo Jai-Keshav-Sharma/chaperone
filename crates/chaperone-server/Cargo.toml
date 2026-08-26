@@ -1,0 +1,10 @@
+[package]
+name = "chaperone-server"
+description = "Chaperone axum app factory (library; consumed by the cli's serve subcommand, ships no binary)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+chaperone-core = { path = "../chaperone-core" }

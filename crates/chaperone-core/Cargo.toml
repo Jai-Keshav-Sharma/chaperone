@@ -1,0 +1,9 @@
+[package]
+name = "chaperone-core"
+description = "Chaperone core library: models, IR, engine, ledger, storage, cache, escalation, compiler, decision"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]

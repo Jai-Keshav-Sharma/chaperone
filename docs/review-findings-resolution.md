@@ -141,6 +141,12 @@ Status: RESOLVED (passes 1–6 + drift fixes). Date: 2026-08-23 through 2026-08-
 |---|---|---|
 | build-plan Phase 4 "Entity model per flows/06" — entity schema now lives in api-contracts.md + policies/cedar_schema.cedar | ✅ VALID | build-plan Phase 4 now points at docs/api-contracts.md (Cedar entity model section) + policies/cedar_schema.cedar |
 
+### Build-blocker finding — Windows Smart App Control (recorded during build, 2026-08-25)
+
+| Item | Verdict | Resolution |
+|---|---|---|
+| SAC (Windows 11 Smart App Control) blocks locally-compiled Rust binaries (unsigned, no cloud reputation) — clippy/cargo blocked on the dev box; would block `chaperone hook` on SAC-enforce end-user machines → fail-closed → "Chaperone bricked my Claude Code" rage-uninstall (flows/09 risk, at launch scale) | ✅ VALID — genuine launch-blocking product finding | (1) Dev box: SAC off (one-way, standard Rust-dev answer; WSL2 rejected — breaks Windows-first spec: CONIN$/CONOUT$ hook approvals, bench subprocess spawns, shim job-objects). (2) LAUNCH REQUIREMENT: **Authenticode code-sign release binaries** (Azure Trusted Signing, free for OSS) — DISTINCT from cosign/Sigstore supply-chain signing (SAC does not read cosign signatures); repo-layout's cosign plan remains, Authenticode is additional. (3) Document honestly in threat-model/adoption: signed releases work on SAC-enforce machines; cargo-install/source builds on those machines need SAC off. |
+
 ---
 
 ## Verdict summary

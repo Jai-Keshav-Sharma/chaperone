@@ -1,0 +1,15 @@
+[package]
+name = "chaperone-cli"
+description = "The chaperone binary: init, hook, serve, gateway, shim, doctor, policy/ledger/approve commands"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[[bin]]
+name = "chaperone"
+path = "src/main.rs"
+
+[dependencies]
+chaperone-core = { path = "../chaperone-core" }
+chaperone-server = { path = "../chaperone-server" }
