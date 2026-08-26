@@ -94,7 +94,9 @@ CREATE TABLE ledger_entries (
     params_hash     VARCHAR(64) NOT NULL,            -- sha256 of RAW params bytes as received; never null.
                                                    -- Distinct from escalations.params_binding_hash (canonical, retry binding)
     tenant_id       VARCHAR(64),                     -- nullable, unused in logic; sharding insurance (PERF-2)
-    decision        VARCHAR(16) NOT NULL,          -- ALLOW|BLOCK|ESCALATE|WOULD_*|APPROVED|DENIED|EXPIRED
+    decision        VARCHAR(32) NOT NULL,          -- ALLOW|BLOCK|ESCALATE|WOULD_*|APPROVED|DENIED|EXPIRED
+                                                   -- VARCHAR(32): future values (WOULD_DEFAULT_DENY etc.)
+                                                   -- must not silently truncate (review-6 #5)
     policy_id       VARCHAR(64) NOT NULL,          -- '__none__' for NO_POLICY
     policy_version  INTEGER NOT NULL DEFAULT 0,
     policy_hash     VARCHAR(64) NOT NULL,          -- '0'*64 when no policy
@@ -194,11 +196,34 @@ or a rebuild. The counter is acceleration, never correctness.
   designed BEFORE production: capacity metrics + alarms on /metrics; disk-full is the
   fleet-wide off switch — fail-closed is correct, so ops must see it coming (review PERF-3).
 
-## Runtime config (not DB)
+## Runtime config (not DB) — `chaperone.yaml` single source of truth
 
-`chaperone.yaml`: derived_attributes declarations (ledger_sum / ledger_count with tool, decision,
-window, same_agent filters) — consumed by the derived-context computer; webhook URL + secret;
-policy pack registry settings; **`ungoverned_default: block|allow`** (deployment policy choice,
-flows/02/09 — block for serve, allow for the local quickstart); escalation TTL; prompt bound;
-**`mode: enforce|shadow`** (deployment default; server-side only — never a client field.
-Per-agent/per-key mode overrides = future column, none exists in v1 tables; review-4 B1).
+The FULL config schema. Every field below, one place. Env overrides use the
+`CHAPERONE_` prefix (e.g., `CHAPERONE_DATABASE_URL`). Only these fields exist in v1 —
+an implementer should NOT invent config surface beyond this table.
+
+| Field | Type | Default | Serves | Notes |
+|---|---|---|---|---|
+| `mode` | `enforce\|shadow` | `enforce` | flows/08 | Server-side ONLY; never a client field (review-4 B1) |
+| `database_url` | string | `sqlite:///./chaperone.db` | flows/02 | SQLite (dev) / Postgres (prod) |
+| `redis_url` | string\|null | null (disabled) | flows/02 | Optional cache tier; correctness never depends on it |
+| `engine` | `cedar\|reference` | `cedar` | flows/02 | Reference = fallback w/ loud warning |
+| `serve_host` / `serve_port` | string / int | `127.0.0.1` / `8400` | flows/09 | |
+| `api_token` | string | `dev-token` | flows/02 | Bootstrap admin key |
+| `cache_ttl_seconds` | int | `30` | flows/02 | In-proc TTL with Redis |
+| `cache_ttl_no_redis_seconds` | int | `5` | flows/02 | In-proc TTL without Redis |
+| `escalation_ttl_seconds` | int | `900` | flows/03 | 15-min auto-deny |
+| `hook_prompt_bound_seconds` | int | `30` | flows/03 | Hook-local approval prompt bound |
+| `webhook_url` / `webhook_secret` | string / string | unset | flows/03 | Escalation event notifications |
+| `proposed_params_retention_days` | int | `30` | flows/03 | Purge resolved escalations' params |
+| `checkpoint_interval_entries` | int | `1000` | flows/04 | Merkle checkpoint cadence |
+| `checkpoint_interval_seconds` | int | `300` | flows/04 | |
+| `checkpoint_signing_key` | string\|null | unset | flows/04 | Ed25519 key path (unsigned dev w/ warning) |
+| `anchor_rekor_url` / `anchor_tsa_url` | string\|null | unset | flows/04 | Optional external anchoring |
+| `ungoverned_default` | `block\|allow` | `block` | flows/02/09 | serve=block; init quickstart=allow |
+| `derived_attributes` | list | `[]` | flows/02 | ledger_sum / ledger_count declarations |
+| `max_body_bytes` | int | `1048576` (1 MiB) | flows/06 | Gateway body buffer bound, fail-closed on oversize |
+| `policy_pack_registry` | list | `[]` | flows/09 | Pack sources for `init` |
+
+Migration/DB config: `sqlx migrate` embedded migrations, `migrations/001_initial_schema.sql`
+naming, committed migrations immutable (review-6 #5/#10).

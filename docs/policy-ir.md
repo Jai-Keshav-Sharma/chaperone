@@ -96,6 +96,8 @@ else                          → BLOCK    (DEFAULT_DENY)
   escalate→forbid with annotation; entity model: principal=Chaperone::Agent, action=Chaperone::Action::"call",
   resource=Chaperone::Tool::"<name>", context={params, request_time, derived}.
   Tool globs → `resource.name like "payments.*"`.
+  The canonical entity schema file lives at `policies/cedar_schema.cedar` — the
+  single source of truth (validated by cedar-policy-validator at compile time).
 
 ## Extensibility
 

@@ -111,13 +111,15 @@ Files: `crates/chaperone-core/src/engine/{cedar_compile.rs, cedar_engine.rs, ref
 
 Contract:
 - `to_cedar(policy) -> String` (deterministic; snapshot-tested). Effects map: allow→permit,
-  block→forbid, escalate→forbid+`@warden_effect("escalate")`. Entity model per flows/06.
+  block→forbid, escalate→forbid+`@chaperone_effect("escalate")`. Entity model per flows/06.
 - `CedarEngine::evaluate(policies, request) -> EngineResult`.
-- `reference::evaluate_ir(policies, request) -> EngineResult` (pure Python-free Rust eval).
+- `reference::evaluate_ir(policies, request) -> EngineResult` (pure Rust eval).
 - Decision semantics per flows/02: block > escalate > allow > default-deny; eval error →
   BLOCK(EVAL_ERROR), never skip the rule.
-- `needs_params(policy_set, tool) -> bool`: true if any targeting rule references params
-  OR has effect escalate (flows/06).
+- `needs_params(policy_set, tool) -> bool` — EXACTLY as docs/policy-ir.md defines it:
+  true iff any targeting rule's condition references param operands. Do NOT add
+  "OR has effect escalate" — escalate-always-deserialize is a GATEWAY concern, not an
+  engine concern (the hook/shim seams don't need the body for escalate-only rules).
 - `derive::compute_derived(...)` — budgets/velocity from derived_counters.
 
 Tests (first): `engine::tests::refund_allow_escalate_block`,
@@ -165,14 +167,46 @@ NO UPDATE/DELETE statements anywhere in this crate (Law 5).
 Files: `crates/chaperone-core/src/storage/{schema.rs, store.rs}`.
 
 Contract (from docs/data-model.md): 8 tables — agent_identities, agent_api_keys, policies,
-policy_versions, audit_ledger (ledger_entries), ledger_checkpoints, escalations,
-derived_counters. One `sqlx` code path for BOTH SQLite and Postgres.
+policy_versions, ledger_entries, ledger_checkpoints, escalations, derived_counters.
+One `sqlx` code path for BOTH SQLite and Postgres.
+
+Migration discipline (Law: determinism + append-only spirit):
+- Naming convention: `migrations/001_initial_schema.sql`, monotonic 3-digit prefixes.
+- Rule: NEVER modify a committed migration. A schema change = a NEW migration file.
+  Committed migrations are immutable, exactly like ledger entries.
 
 Tests (first): `storage::tests::schema_creates_all_tables_sqlite`,
 `storage::tests::one_active_policy_invariant`, `storage::tests::params_binding_hash_roundtrip`.
 
 **DoD:** schema applies on SQLite; Postgres path compiles; unique constraints enforced.
 **Guardrails:** sqlx Core (not ORM); embedded migrations; single storage code path.
+
+---
+
+## Phase 6.5 — cache (3-tier policy cache — a correctness concern, not just perf)
+
+**Objective:** the 3-tier policy cache (in-proc → Redis → DB) + pub/sub invalidation.
+
+Files: `crates/chaperone-core/src/cache/{policy_cache.rs, redis_tier.rs}`.
+
+Contract (from flows/02 Tooling decisions — Cache):
+- Tier 1: in-process parsed/compiled policy set (ALWAYS populated; TTL via injected
+  Clock: 30s with Redis, 5s without).
+- Tier 2: Redis shared copy + `chaperone:policy:invalidate` pub/sub subscriber thread.
+- Tier 3: DB (source of truth; via storage).
+- Failure semantics: Redis down → SKIP to tier 3 (correct, slower); reconnect loop +
+  full reload on reconnect. DB down → `FAIL_CLOSED_POLICY_UNAVAILABLE` (a cache outage
+  can NEVER change a verdict — cache is latency optimization only).
+- Invalidation on policy activation: publish → subscriber drops local → reload.
+
+Tests (first): `cache::tests::tier_fallback_on_redis_down`,
+`cache::tests::pubsub_invalidation_propagates`,
+`cache::tests::in_proc_always_populated`,
+`cache::tests::ttl_expiry_uses_fixed_clock`.
+
+**DoD:** tier fallback works; invalidation propagates; cache outage never changes a verdict.
+**Guardrails:** cache is NEVER a correctness dependency (Law); correctness depends only
+on the DB + chain. No cache failure may fail open (Law 1).
 
 ---
 
@@ -221,9 +255,15 @@ escalation binding).
 
 Files: `crates/chaperone-server/src/{lib.rs, routes/}`.
 
-Contract: routes — `/v1/decisions`, `/v1/policies/*`, `/v1/escalations/*`,
-`/v1/ledger/*`, `/healthz`, `/metrics`, `/ws/decisions`. Bearer auth (hashed keys).
-Request/response exactly per docs/api-contracts.md. Rate limiting per key. TLS option.
+Contract: routes — exactly per `docs/api-contracts.md` (frozen paths + bodies):
+`/v1/decisions` (POST), `/v1/policies` (GET list), `/v1/policies/{id}` (GET),
+`/v1/policies/{id}/versions` (GET), `/v1/policies/{id}/versions/{version}` (GET),
+`/v1/policies/{id}/activate` (POST), `/v1/escalations` (GET list),
+`/v1/escalations/{id}` (GET), `/v1/escalations/{id}/resolve` (POST),
+`/v1/ledger/entries` (GET), `/v1/ledger/verify` (GET), `/v1/ledger/prove` (GET),
+`/v1/ledger/checkpoints` (GET), `/healthz`, `/metrics`, `/ws/decisions` (WebSocket).
+Bearer auth (hashed keys). Request/response exactly per docs/api-contracts.md.
+Rate limiting per key. TLS option.
 
 Tests (first): `server::tests::decisions_endpoint_allow`, `server::tests::rate_limited_429`,
 `server::tests::unknown_key_401`, `server::tests::ledger_verify_endpoint`.

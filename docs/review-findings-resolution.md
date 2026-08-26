@@ -125,6 +125,16 @@ Status: RESOLVED (passes 1–4 + drift fixes). Date: 2026-08-23 through 2026-08-
 | derived_counters corruption | ✅ VALID | data-model: counter corruption can never cause incorrect ALLOW (chain = truth, rebuildable) |
 | "No ML in decision path" prominence | ✅ VALID | tech-stack principles: elevated to principle #1 with competitor contrast; measured-numbers comms rule added |
 
+### Review pass 6 (api-contracts + build-plan implementer blockers) — resolved
+
+| Item | Verdict | Resolution |
+|---|---|---|
+| 1. chaperone.yaml has no formal schema (scattered across 6 docs) | ✅ VALID — implementer blocker | data-model.md: full config table (field, type, default, flow served) — one source of truth; env `CHAPERONE_` prefix |
+| 2. Cedar entity schema in the wrong place for implementers | ✅ VALID — Phase 4 blocker | `policies/cedar_schema.cedar` created (canonical); referenced from policy-ir.md + api-contracts.md (new Cedar entity section) + build-plan |
+| 3. decision_trace shape undefined | ✅ VALID — implementer blocker | api-contracts.md: full trace shape section (one entry per rule, flat, redacted operands with paths only, eval-error example) |
+| 4. Cache module has no build phase | ✅ VALID — retrofit risk | build-plan: new Phase 6.5 (cache) with tier fallback + pub/sub invalidation tests |
+| 5. decision VARCHAR(16) too tight for WOULD_* | ✅ VALID | data-model.md: `decision VARCHAR(32)` (matches entry_type sizing; future values won't silently truncate) |
+
 ---
 
 ## Verdict summary
