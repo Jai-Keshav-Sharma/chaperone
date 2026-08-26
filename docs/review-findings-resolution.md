@@ -135,6 +135,12 @@ Status: RESOLVED (passes 1–4 + drift fixes). Date: 2026-08-23 through 2026-08-
 | 4. Cache module has no build phase | ✅ VALID — retrofit risk | build-plan: new Phase 6.5 (cache) with tier fallback + pub/sub invalidation tests |
 | 5. decision VARCHAR(16) too tight for WOULD_* | ✅ VALID | data-model.md: `decision VARCHAR(32)` (matches entry_type sizing; future values won't silently truncate) |
 
+### Review pass 6b — stale cross-reference
+
+| Item | Verdict | Resolution |
+|---|---|---|
+| build-plan Phase 4 "Entity model per flows/06" — entity schema now lives in api-contracts.md + policies/cedar_schema.cedar | ✅ VALID | build-plan Phase 4 now points at docs/api-contracts.md (Cedar entity model section) + policies/cedar_schema.cedar |
+
 ---
 
 ## Verdict summary

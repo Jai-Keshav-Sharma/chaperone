@@ -111,7 +111,8 @@ Files: `crates/chaperone-core/src/engine/{cedar_compile.rs, cedar_engine.rs, ref
 
 Contract:
 - `to_cedar(policy) -> String` (deterministic; snapshot-tested). Effects map: allow→permit,
-  block→forbid, escalate→forbid+`@chaperone_effect("escalate")`. Entity model per flows/06.
+  block→forbid, escalate→forbid+`@chaperone_effect("escalate")`. Entity model per
+  docs/api-contracts.md (Cedar entity model section) + policies/cedar_schema.cedar.
 - `CedarEngine::evaluate(policies, request) -> EngineResult`.
 - `reference::evaluate_ir(policies, request) -> EngineResult` (pure Rust eval).
 - Decision semantics per flows/02: block > escalate > allow > default-deny; eval error →
