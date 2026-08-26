@@ -54,7 +54,7 @@ humans review it, and the engine's auxiliary services (needs_params, lint) deriv
 | and / or / not | {"op":"and","args":[C,…]} | logical; not takes exactly one arg |
 | eq ne lt lte gt gte | {"op":"lte","left":O,"right":O} | comparison; numeric ops accept int/float interchangeably; NO other implicit coercion |
 | in / not_in | {"op":"in","left":O,"values":[...]} | set membership |
-| matches | {"op":"matches","left":O,"pattern":"^…$"} | anchored, backref-free regex (like-compatible); precompiled at policy load; used for shell commands, paths, hosts |
+| matches | {"op":"matches","left":O,"pattern":"…"} | WILDCARD SUBSET — NOT full regex. Cedar-`like`-compatible: `*` (any sequence), `+`, `\` escapes; whole-string match (no anchors exist). Probe-verified against the Cedar engine during build (2026-08-25); the exact supported set is enforced in IR validation. Used for shell commands, paths, hosts. Full regex = a future ir_version bump (see Extensibility) |
 | exists | {"op":"exists","param":"path.to.field"} | param present and non-null |
 | time_between | {"op":"time_between","start":"09:00","end":"17:00","tz":"UTC","days":["mon",...]} | evaluated against context.request_time (computed at boundary, ledgered — never wall clock) |
 

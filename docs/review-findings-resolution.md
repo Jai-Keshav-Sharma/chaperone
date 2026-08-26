@@ -147,6 +147,12 @@ Status: RESOLVED (passes 1–6 + drift fixes). Date: 2026-08-23 through 2026-08-
 |---|---|---|
 | SAC (Windows 11 Smart App Control) blocks locally-compiled Rust binaries (unsigned, no cloud reputation) — clippy/cargo blocked on the dev box; would block `chaperone hook` on SAC-enforce end-user machines → fail-closed → "Chaperone bricked my Claude Code" rage-uninstall (flows/09 risk, at launch scale) | ✅ VALID — genuine launch-blocking product finding | (1) Dev box: SAC off (one-way, standard Rust-dev answer; WSL2 rejected — breaks Windows-first spec: CONIN$/CONOUT$ hook approvals, bench subprocess spawns, shim job-objects). (2) LAUNCH REQUIREMENT: **Authenticode code-sign release binaries** (Azure Trusted Signing, free for OSS) — DISTINCT from cosign/Sigstore supply-chain signing (SAC does not read cosign signatures); repo-layout's cosign plan remains, Authenticode is additional. (3) Document honestly in threat-model/adoption: signed releases work on SAC-enforce machines; cargo-install/source builds on those machines need SAC off. |
 
+### Build record — matches operator narrowed to Cedar-like wildcard subset (Phase 4, 2026-08-25)
+
+| Item | Verdict | Resolution |
+|---|---|---|
+| `matches` op implemented as the Cedar-`like` wildcard subset (`*`, `+`, escapes), NOT full regex — probe-verified against the Cedar engine | ✅ VALID — consistent with spec's own "like-compatible" qualifier; full regex would break the transpile | policy-ir.md `matches` row sharpened: explicitly "WILDCARD SUBSET — NOT full regex," no anchor notation, probe-verified set enforced in IR validation, full regex = future ir_version bump |
+
 ---
 
 ## Verdict summary
