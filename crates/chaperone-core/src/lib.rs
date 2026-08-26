@@ -7,4 +7,6 @@
 //! | compiler | docs -> decision -> server | cli. Nothing imports upward.
 //! The pure layers (models, ir, engine) do zero I/O.
 
+pub mod canonical;
+pub mod clock;
 pub mod models;
