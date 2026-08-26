@@ -9,5 +9,6 @@
 
 pub mod canonical;
 pub mod clock;
+pub mod engine;
 pub mod ir;
 pub mod models;

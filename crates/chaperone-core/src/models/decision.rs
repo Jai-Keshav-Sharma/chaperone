@@ -62,7 +62,7 @@ pub struct DecisionRequest {
 }
 
 /// Trace operand kinds — `param | context | value | derived` (api-contracts).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "lowercase")]
 pub enum OperandKind {
     Param,

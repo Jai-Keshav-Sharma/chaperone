@@ -15,6 +15,8 @@ pub enum ValidationErrorCode {
     InvalidContextOperand,
     EmptyPattern,
     PatternNotAnchored,
+    InvalidPatternChar,
+    NullValueOperand,
     InvalidTimeFormat,
     EmptyTimezone,
 }
@@ -150,6 +152,18 @@ fn validate_condition(node: &ConditionNode, rule_id: &str, errs: &mut Vec<Valida
                     format!("matches pattern {pattern:?} must be anchored (^...$)"),
                 ));
             }
+            if pattern.len() >= 2
+                && let Some(bad) = invalid_pattern_char(pattern)
+            {
+                errs.push(ValidationError::new(
+                    ValidationErrorCode::InvalidPatternChar,
+                    Some(rule_id.to_string()),
+                    format!(
+                        "matches pattern {pattern:?} uses unsupported character {bad:?} — \
+                         only `*` wildcards and \\-escaped literals are supported (like-compatible)"
+                    ),
+                ));
+            }
         }
         ConditionNode::Exists { param } => {
             if param.is_empty() {
@@ -208,8 +222,37 @@ fn validate_operand(op: &Operand, rule_id: &str, errs: &mut Vec<ValidationError>
                 ));
             }
         }
-        Operand::Value { .. } => {}
+        Operand::Value { value } => {
+            if value.is_null() {
+                errs.push(ValidationError::new(
+                    ValidationErrorCode::NullValueOperand,
+                    Some(rule_id.to_string()),
+                    "value operands must not be null (Cedar has no null literal)",
+                ));
+            }
+        }
     }
+}
+
+/// Characters forbidden in a matches pattern interior: regex metachars with no
+/// like-compatible meaning (docs/policy-ir.md "like-compatible"). `\x` escapes
+/// are allowed and exempt from the check. `*` (wildcard) is allowed.
+fn invalid_pattern_char(pattern: &str) -> Option<char> {
+    let interior = &pattern[1..pattern.len().saturating_sub(1)];
+    let mut chars = interior.chars();
+    while let Some(c) = chars.next() {
+        if c == '\\' {
+            chars.next();
+            continue;
+        }
+        if matches!(
+            c,
+            '?' | '.' | '[' | ']' | '+' | '(' | ')' | '{' | '}' | '|' | '^' | '$'
+        ) {
+            return Some(c);
+        }
+    }
+    None
 }
 
 /// Strict "HH:MM" clock format: 2-digit hours (00-23), colon, 2-digit minutes (00-59).
@@ -333,9 +376,51 @@ mod tests {
         v["rules"][0]["condition"] = json!({
             "op": "matches",
             "left": {"param": "customer_id"},
-            "pattern": "^cus_.*$"
+            "pattern": "^cus_*$"
         });
         assert!(validate(&parse(v)).is_ok());
+    }
+
+    #[test]
+    fn unsupported_pattern_char_rejected() {
+        for bad in ["^cus_.*$", "^a?b$", "^[a-z]+$", "^a|b$"] {
+            let mut v = base();
+            v["rules"][0]["condition"] = json!({
+                "op": "matches",
+                "left": {"param": "customer_id"},
+                "pattern": bad
+            });
+            let errs = validate(&parse(v)).expect_err("must fail");
+            assert!(
+                errs.iter()
+                    .any(|e| matches!(e.code, ValidationErrorCode::InvalidPatternChar)),
+                "pattern {bad:?} should be rejected"
+            );
+        }
+        for ok in ["^cus_*$", "^rm -rf \\*$", "^a\\.b$"] {
+            let mut v = base();
+            v["rules"][0]["condition"] = json!({
+                "op": "matches",
+                "left": {"param": "customer_id"},
+                "pattern": ok
+            });
+            assert!(validate(&parse(v)).is_ok(), "pattern {ok:?} should pass");
+        }
+    }
+
+    #[test]
+    fn null_value_operand_rejected() {
+        let mut v = base();
+        v["rules"][0]["condition"] = json!({
+            "op": "eq",
+            "left": {"param": "x"},
+            "right": {"value": null}
+        });
+        let errs = validate(&parse(v)).expect_err("must fail");
+        assert!(
+            errs.iter()
+                .any(|e| matches!(e.code, ValidationErrorCode::NullValueOperand))
+        );
     }
 
     #[test]
