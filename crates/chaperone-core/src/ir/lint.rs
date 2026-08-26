@@ -185,16 +185,17 @@ fn is_broad_pattern(t: &str) -> bool {
     t == "*" || (t.contains('*') && !is_glob(t)) || (is_glob(t) && glob_prefix(t).contains('*'))
 }
 
-fn is_glob(s: &str) -> bool {
+pub(crate) fn is_glob(s: &str) -> bool {
     s.ends_with(".*")
 }
 
-fn glob_prefix(s: &str) -> &str {
+/// Trailing-* glob prefix; callers must check is_glob() first.
+pub(crate) fn glob_prefix(s: &str) -> &str {
     &s[..s.len() - 2]
 }
 
-/// Can two tool patterns both match some tool name?
-fn tool_patterns_overlap(a: &str, b: &str) -> bool {
+/// Can two tool patterns both match some tool name? (shared with the engine)
+pub(crate) fn tool_patterns_overlap(a: &str, b: &str) -> bool {
     if a == "*" || b == "*" {
         return true;
     }
