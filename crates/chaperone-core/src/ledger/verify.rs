@@ -78,26 +78,28 @@ mod tests {
     use crate::ledger::chain::tests::{InMemoryChainStore, decision_entry};
     use crate::ledger::chain::{append, append_genesis};
 
-    fn three_entry_chain() -> InMemoryChainStore {
+    async fn three_entry_chain() -> InMemoryChainStore {
         let store = InMemoryChainStore::new();
-        append_genesis(&store).expect("genesis");
+        append_genesis(&store).await.expect("genesis");
         append(
             &store,
             decision_entry(0, "req_a", "ALLOW", vec![], "2026-08-25T14:00:00Z"),
         )
+        .await
         .expect("a");
         append(
             &store,
             decision_entry(0, "req_b", "BLOCK", vec![], "2026-08-25T14:00:01Z"),
         )
+        .await
         .expect("b");
         store
     }
 
     type Mutation = fn(&mut InMemoryChainStore);
 
-    #[test]
-    fn verify_detects_tamper() {
+    #[tokio::test]
+    async fn verify_detects_tamper() {
         // every preimage field, mutated → CHAIN BROKEN at the right seq
         let mutations: Vec<(&str, Mutation)> = vec![
             ("decision", |s| {
@@ -133,7 +135,7 @@ mod tests {
             }),
         ];
         for (field, mutate) in mutations {
-            let mut store = three_entry_chain();
+            let mut store = three_entry_chain().await;
             mutate(&mut store);
             let result = verify_chain(&store.entries());
             assert!(!result.is_ok(), "tampered field {field} not detected");
@@ -150,25 +152,25 @@ mod tests {
         }
     }
 
-    #[test]
-    fn verify_ok_chain() {
-        let store = three_entry_chain();
+    #[tokio::test]
+    async fn verify_ok_chain() {
+        let store = three_entry_chain().await;
         assert_eq!(
             verify_chain(&store.entries()),
             VerificationResult::ChainOk { entries: 3 }
         );
     }
 
-    #[test]
-    fn verify_detects_truncation_and_reorder() {
-        let store = three_entry_chain();
+    #[tokio::test]
+    async fn verify_detects_truncation_and_reorder() {
+        let store = three_entry_chain().await;
         store.truncate(2);
         assert_eq!(
             verify_chain(&store.entries()),
             VerificationResult::ChainOk { entries: 2 }
         );
         // truncation below genesis
-        let store = three_entry_chain();
+        let store = three_entry_chain().await;
         store.truncate(0);
         let r = verify_chain(&store.entries());
         assert!(matches!(
@@ -177,7 +179,7 @@ mod tests {
         ));
 
         // reorder: swap entries 1 and 2 → linkage breaks
-        let store = three_entry_chain();
+        let store = three_entry_chain().await;
         store.mutate(1, |e| e.entry_seq = 9);
         store.mutate(2, |e| e.entry_seq = 9);
         let r = verify_chain(&store.entries());

@@ -23,17 +23,18 @@ pub enum ChainError {
     },
     /// The underlying store failed (single-writer violation, I/O, ...).
     Store(String),
+    /// Storage layer error (sqlx, migrations, ...).
+    Storage(String),
 }
 
-/// The storage seam for the chain. Implementations MUST guarantee:
+/// The storage seam for the chain (async — the sqlx implementation in
+/// Phase 6/storage). Implementations MUST guarantee:
 /// - single-writer semantics (SQLite WAL + BEGIN IMMEDIATE inside
 ///   insert_entry; Postgres advisory lock) so read-head → compute → insert
 ///   cannot interleave;
 /// - append-only (insert only, never update/delete);
 /// - UNIQUE(request_id, entry_type) enforced at insert (idempotent replay).
-///
-/// The sqlx implementation lands in Phase 6 (storage).
 pub trait ChainStore {
-    fn last_entry(&self) -> Result<Option<LedgerEntry>, ChainError>;
-    fn insert_entry(&self, entry: &LedgerEntry) -> Result<(), ChainError>;
+    async fn last_entry(&self) -> Result<Option<LedgerEntry>, ChainError>;
+    async fn insert_entry(&self, entry: &LedgerEntry) -> Result<(), ChainError>;
 }

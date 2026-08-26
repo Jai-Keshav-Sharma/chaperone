@@ -20,6 +20,16 @@ impl EntryType {
             EntryType::Checkpoint => "CHECKPOINT",
         }
     }
+
+    pub fn parse_str(s: &str) -> Self {
+        match s {
+            "GENESIS" => EntryType::Genesis,
+            "DECISION" => EntryType::Decision,
+            "ESCALATION_RESOLVED" => EntryType::EscalationResolved,
+            "CHECKPOINT" => EntryType::Checkpoint,
+            other => panic!("unknown EntryType: {other}"),
+        }
+    }
 }
 
 /// One ledger row (docs/data-model.md ledger_entries) — the hash-chain node.

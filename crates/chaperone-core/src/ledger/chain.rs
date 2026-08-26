@@ -63,23 +63,26 @@ pub fn genesis_entry() -> LedgerEntry {
 }
 
 /// Write the fixed genesis entry. Fails if the chain already has entries.
-pub fn append_genesis(store: &dyn ChainStore) -> Result<LedgerEntry, ChainError> {
-    if store.last_entry()?.is_some() {
+pub async fn append_genesis(store: &impl ChainStore) -> Result<LedgerEntry, ChainError> {
+    if store.last_entry().await?.is_some() {
         return Err(ChainError::GenesisExists);
     }
     let mut entry = genesis_entry();
     entry.entry_hash = compute_entry_hash(&entry);
-    store.insert_entry(&entry)?;
+    store.insert_entry(&entry).await?;
     Ok(entry)
 }
 
-/// Synchronous append (docs/flows/04 Layer 1): read head → compute seq, prev,
+/// Append (docs/flows/04 Layer 1): read head → compute seq, prev,
 /// hash → insert. The store provides the atomic single-writer guarantee.
 /// Idempotency: a duplicate (request_id, entry_type) surfaces as
 /// ChainError::DuplicateEntry from the store's UNIQUE constraint — the
 /// decision service answers the replay from the original entry instead.
-pub fn append(store: &dyn ChainStore, mut entry: LedgerEntry) -> Result<(u64, String), ChainError> {
-    let last = store.last_entry()?;
+pub async fn append(
+    store: &impl ChainStore,
+    mut entry: LedgerEntry,
+) -> Result<(u64, String), ChainError> {
+    let last = store.last_entry().await?;
     match &last {
         Some(head) => {
             entry.entry_seq = head.entry_seq + 1;
@@ -88,7 +91,7 @@ pub fn append(store: &dyn ChainStore, mut entry: LedgerEntry) -> Result<(u64, St
         None => return Err(ChainError::GenesisMissing),
     }
     entry.entry_hash = compute_entry_hash(&entry);
-    store.insert_entry(&entry)?;
+    store.insert_entry(&entry).await?;
     Ok((entry.entry_seq, entry.entry_hash.clone()))
 }
 
@@ -129,10 +132,10 @@ pub(crate) mod tests {
     }
 
     impl ChainStore for InMemoryChainStore {
-        fn last_entry(&self) -> Result<Option<LedgerEntry>, ChainError> {
+        async fn last_entry(&self) -> Result<Option<LedgerEntry>, ChainError> {
             Ok(self.entries.borrow().last().cloned())
         }
-        fn insert_entry(&self, entry: &LedgerEntry) -> Result<(), ChainError> {
+        async fn insert_entry(&self, entry: &LedgerEntry) -> Result<(), ChainError> {
             let mut entries = self.entries.borrow_mut();
             let dup = entries
                 .iter()
@@ -226,8 +229,8 @@ pub(crate) mod tests {
         );
     }
 
-    #[test]
-    fn genesis_written_on_first_startup() {
+    #[tokio::test]
+    async fn genesis_written_on_first_startup() {
         let store = InMemoryChainStore::new();
         let g = super::genesis_entry();
         assert_eq!(g.entry_seq, 0);
@@ -239,27 +242,29 @@ pub(crate) mod tests {
             "61eaf75514a57b377ee3b3ead172419206321b6d2fa2e300d907ec250a5a90e5"
         );
         // append_genesis writes it (with its hash) and refuses a second
-        let written = append_genesis(&store).expect("genesis");
+        let written = append_genesis(&store).await.expect("genesis");
         let mut expected = g;
         expected.entry_hash = compute_entry_hash(&expected);
         assert_eq!(written, expected);
-        assert_eq!(append_genesis(&store), Err(ChainError::GenesisExists));
+        assert_eq!(append_genesis(&store).await, Err(ChainError::GenesisExists));
     }
 
-    #[test]
-    fn append_links_and_numbers() {
+    #[tokio::test]
+    async fn append_links_and_numbers() {
         let store = InMemoryChainStore::new();
-        append_genesis(&store).expect("genesis");
+        append_genesis(&store).await.expect("genesis");
         let (seq1, h1) = append(
             &store,
             decision_entry(0, "req_a", "ALLOW", vec![], "2026-08-25T14:00:00Z"),
         )
+        .await
         .expect("append");
         assert_eq!(seq1, 1);
         let (seq2, h2) = append(
             &store,
             decision_entry(0, "req_b", "BLOCK", vec![], "2026-08-25T14:00:01Z"),
         )
+        .await
         .expect("append");
         assert_eq!(seq2, 2);
         let entries = store.entries();
@@ -269,27 +274,30 @@ pub(crate) mod tests {
         assert_eq!(entries[2].entry_hash, h2);
     }
 
-    #[test]
-    fn append_before_genesis_fails() {
+    #[tokio::test]
+    async fn append_before_genesis_fails() {
         let store = InMemoryChainStore::new();
         assert_eq!(
             append(
                 &store,
                 decision_entry(0, "req_a", "ALLOW", vec![], "2026-08-25T14:00:00Z")
-            ),
+            )
+            .await,
             Err(ChainError::GenesisMissing)
         );
     }
 
-    #[test]
-    fn idempotent_replay() {
+    #[tokio::test]
+    async fn idempotent_replay() {
         let store = InMemoryChainStore::new();
-        append_genesis(&store).expect("genesis");
+        append_genesis(&store).await.expect("genesis");
         let entry = decision_entry(0, "req_dup", "ALLOW", vec![], "2026-08-25T14:00:00Z");
-        append(&store, entry.clone()).expect("first append");
+        append(&store, entry.clone()).await.expect("first append");
         // Replaying the same (request_id, entry_type) is rejected by the
         // UNIQUE constraint — the decision service answers from the original.
-        let err = append(&store, entry.clone()).expect_err("duplicate must fail");
+        let err = append(&store, entry.clone())
+            .await
+            .expect_err("duplicate must fail");
         assert!(matches!(err, ChainError::DuplicateEntry { .. }));
         assert_eq!(store.entries().len(), 2); // genesis + original, no double append
     }

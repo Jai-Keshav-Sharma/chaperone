@@ -83,7 +83,7 @@ CREATE UNIQUE INDEX ux_policy_one_active ON policy_versions(policy_id) WHERE sta
 
 ```sql
 CREATE TABLE ledger_entries (
-    entry_seq       INTEGER PRIMARY KEY,           -- writer-assigned, NOT autoincrement
+    entry_seq       BIGINT PRIMARY KEY,           -- writer-assigned, NOT autoincrement
     entry_ts        VARCHAR(32) NOT NULL,          -- RFC3339 UTC; part of preimage, stored exactly
     previous_hash   VARCHAR(64) NOT NULL,
     entry_hash      VARCHAR(64) NOT NULL UNIQUE,
@@ -150,8 +150,8 @@ CREATE TABLE escalations (
     created_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     expires_at      TIMESTAMP NOT NULL,            -- created_at + CHAPERONE_ESCALATION_TTL_SECONDS (900)
     resolved_at     TIMESTAMP,
-    decision_entry_seq   INTEGER REFERENCES ledger_entries(entry_seq),
-    resolution_entry_seq INTEGER REFERENCES ledger_entries(entry_seq),
+    decision_entry_seq   BIGINT REFERENCES ledger_entries(entry_seq),
+    resolution_entry_seq BIGINT REFERENCES ledger_entries(entry_seq),
     CHECK (status IN ('pending','approved','denied','expired','consumed'))
 );
 CREATE INDEX ix_escalations_status ON escalations(status, expires_at);
@@ -169,7 +169,7 @@ CREATE TABLE derived_counters (
     tool         VARCHAR(128) NOT NULL,
     window_ts    INTEGER NOT NULL,           -- window start epoch
     value        REAL NOT NULL,              -- running sum / count
-    updated_seq  INTEGER NOT NULL            -- ledger seq of last contributing entry
+    updated_seq  BIGINT NOT NULL            -- ledger seq of last contributing entry
 );
 ```
 
