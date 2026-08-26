@@ -6,3 +6,5 @@
 //! Layering law: models -> ir | engine | ledger | storage | cache | escalation
 //! | compiler | docs -> decision -> server | cli. Nothing imports upward.
 //! The pure layers (models, ir, engine) do zero I/O.
+
+pub mod models;
