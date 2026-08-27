@@ -9,6 +9,7 @@
 
 pub mod auth;
 pub mod error;
+pub mod rate_limit;
 pub mod routes;
 pub mod state;
 
@@ -85,6 +86,21 @@ pub fn app(state: AppState) -> axum::Router {
         .with_state(state)
 }
 
+/// The default per-key rate-limit config (burst 1000, 300/sec sustained —
+/// scalability-targets node ceiling).
+pub fn default_rate_limit() -> rate_limit::RateLimitConfig {
+    rate_limit::RateLimitConfig::default()
+}
+
+/// Build the router with the per-key rate limiter applied as a tower layer
+/// (flows/02 invariant 10). `config` controls the ceiling; the limiter is
+/// shared so the layer state persists across requests.
+pub fn app_with_rate_limit(state: AppState, config: rate_limit::RateLimitConfig) -> axum::Router {
+    let limiter = rate_limit::RateLimiter::new();
+    let layer = rate_limit::RateLimitLayer::new(limiter, config);
+    app(state).layer(layer)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -100,8 +116,8 @@ mod tests {
     use tower::ServiceExt;
 
     /// Build a test app over a real in-memory sqlite store with a seeded
-    /// agent + api key + an active policy.
-    async fn test_app() -> (axum::Router, Store) {
+    /// agent + api key + an active policy. Returns (router, store, state).
+    async fn test_app() -> (axum::Router, Store, AppState) {
         let store = Store::open_sqlite("sqlite::memory:")
             .await
             .expect("in-memory store");
@@ -212,7 +228,7 @@ mod tests {
             900,
             vec![],
         );
-        (app(state), store)
+        (app(state.clone()), store, state)
     }
 
     fn decision_body(amount: i64) -> serde_json::Value {
@@ -240,7 +256,7 @@ mod tests {
 
     #[tokio::test]
     async fn decisions_endpoint_allow() {
-        let (app, _store) = test_app().await;
+        let (app, _store, _state) = test_app().await;
         let resp = app
             .oneshot(
                 Request::builder()
@@ -263,7 +279,7 @@ mod tests {
 
     #[tokio::test]
     async fn decisions_endpoint_escalate_creates_ticket() {
-        let (app, store) = test_app().await;
+        let (app, store, _state) = test_app().await;
         let resp = app
             .oneshot(
                 Request::builder()
@@ -293,7 +309,7 @@ mod tests {
 
     #[tokio::test]
     async fn decisions_endpoint_block() {
-        let (app, _store) = test_app().await;
+        let (app, _store, _state) = test_app().await;
         let resp = app
             .oneshot(
                 Request::builder()
@@ -316,7 +332,7 @@ mod tests {
 
     #[tokio::test]
     async fn unknown_key_401() {
-        let (app, _store) = test_app().await;
+        let (app, _store, _state) = test_app().await;
         let resp = app
             .oneshot(
                 Request::builder()
@@ -336,7 +352,7 @@ mod tests {
 
     #[tokio::test]
     async fn missing_key_401() {
-        let (app, _store) = test_app().await;
+        let (app, _store, _state) = test_app().await;
         let resp = app
             .oneshot(
                 Request::builder()
@@ -353,7 +369,7 @@ mod tests {
 
     #[tokio::test]
     async fn malformed_request_422() {
-        let (app, _store) = test_app().await;
+        let (app, _store, _state) = test_app().await;
         // An unknown field (e.g. a client-supplied "mode") is rejected.
         let mut body = decision_body(150);
         body["mode"] = json!("shadow");
@@ -376,7 +392,7 @@ mod tests {
 
     #[tokio::test]
     async fn healthz_ok() {
-        let (app, _store) = test_app().await;
+        let (app, _store, _state) = test_app().await;
         let resp = app
             .oneshot(
                 Request::builder()
@@ -391,7 +407,7 @@ mod tests {
 
     #[tokio::test]
     async fn ledger_verify_endpoint() {
-        let (app, _store) = test_app().await;
+        let (app, _store, _state) = test_app().await;
         let resp = app
             .oneshot(
                 Request::builder()
@@ -410,7 +426,7 @@ mod tests {
 
     #[tokio::test]
     async fn ledger_verify_requires_auth() {
-        let (app, _store) = test_app().await;
+        let (app, _store, _state) = test_app().await;
         let resp = app
             .oneshot(
                 Request::builder()
@@ -421,5 +437,43 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+    }
+
+    /// The per-key rate limiter: a burst of 2 allows 2 then 429s the third,
+    /// with the RATE_LIMITED body + retry-after header (flows/02 invariant 10).
+    #[tokio::test]
+    async fn rate_limited_429() {
+        // Rebuild the app with the rate-limit layer at a tight config.
+        let (_app, _store, state) = test_app().await;
+        let config = crate::rate_limit::RateLimitConfig {
+            burst: 2,
+            per_second: 1,
+        };
+        let app = app_with_rate_limit(state, config);
+
+        let req = || {
+            Request::builder()
+                .method("POST")
+                .uri("/v1/decisions")
+                .header("authorization", "Bearer dev-token")
+                .header("content-type", "application/json")
+                .body(Body::from(decision_body(50).to_string()))
+                .unwrap()
+        };
+        // First two pass (burst), third is limited.
+        let r1 = app.clone().oneshot(req()).await.unwrap();
+        assert_eq!(r1.status(), StatusCode::OK);
+        let r2 = app.clone().oneshot(req()).await.unwrap();
+        assert_eq!(r2.status(), StatusCode::OK);
+        let r3 = app.clone().oneshot(req()).await.unwrap();
+        assert_eq!(r3.status(), StatusCode::TOO_MANY_REQUESTS);
+        let v = body_json(r3).await;
+        assert_eq!(v["error"]["code"], "RATE_LIMITED");
+        assert!(
+            v["error"]["detail"]["retry_after_seconds"]
+                .as_u64()
+                .unwrap()
+                >= 1
+        );
     }
 }
