@@ -488,17 +488,15 @@ impl Store {
     /// Consume an approved escalation — the single-use transition (Flow 3
     /// step 4). Only an APPROVED, unconsumed escalation can be consumed; the
     /// row-lock (WHERE status='approved') makes concurrent consumption safe.
-    pub async fn consume_escalation(
-        &self,
-        escalation_id: &str,
-        decision_entry_seq: i64,
-    ) -> Result<(), StoreError> {
+    /// decision_entry_seq is NOT touched: it is the FK to the ORIGINAL
+    /// ESCALATE decision entry (set by attach) — the retry's own entry is
+    /// already in the ledger carrying the escalation_id.
+    pub async fn consume_escalation(&self, escalation_id: &str) -> Result<(), StoreError> {
         let changes = sqlx::query(
             "UPDATE escalations
-             SET status = 'consumed', decision_entry_seq = ?1
-             WHERE escalation_id = ?2 AND status = 'approved'",
+             SET status = 'consumed'
+             WHERE escalation_id = ?1 AND status = 'approved'",
         )
-        .bind(decision_entry_seq)
         .bind(escalation_id)
         .execute(self.pool())
         .await?;

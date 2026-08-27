@@ -34,12 +34,15 @@ pub trait EscalationSeam: Send + Sync {
         policy_version: u32,
         rule_ids: &[String],
     ) -> Result<(), StoreError>;
-    async fn consume(
+    /// Read-only validation of a retry against the ticket (no transition).
+    async fn check_consume(
         &self,
         escalation_id: &str,
         req: &DecisionRequest,
-        decision_entry_seq: i64,
     ) -> Result<ReasonCode, StoreError>;
+    /// Transition an APPROVED ticket to consumed (after the retry's ledger
+    /// entry is appended).
+    async fn consume(&self, escalation_id: &str) -> Result<(), StoreError>;
     async fn attach(
         &self,
         escalation_id: String,
@@ -67,13 +70,15 @@ impl EscalationSeam for EscalationService {
         )
         .await
     }
-    async fn consume(
+    async fn check_consume(
         &self,
         escalation_id: &str,
         req: &DecisionRequest,
-        decision_entry_seq: i64,
     ) -> Result<ReasonCode, StoreError> {
-        EscalationService::consume(self, escalation_id, req, decision_entry_seq).await
+        EscalationService::check_consume(self, escalation_id, req).await
+    }
+    async fn consume(&self, escalation_id: &str) -> Result<(), StoreError> {
+        EscalationService::consume(self, escalation_id).await
     }
     async fn attach(
         &self,
@@ -245,9 +250,11 @@ where
         // else → BLOCK with the ESCALATION_* reason. The DECISION entry for
         // the retry is appended before responding (append-then-respond).
         if let Some(esc_id) = &req.escalation_id {
-            // Resolve the ticket (read-only; the consume transition happens
-            // after the entry appends, with the REAL seq).
-            let rc = match self.escalations.consume(esc_id, req, 0).await {
+            // Read-only check (no transition): approve + unconsumed + params
+            // bound → ALLOW; anything else → BLOCK with the ESCALATION_*
+            // reason. The transition happens AFTER the retry's ledger entry
+            // appends (append-then-respond, Law 3).
+            let rc = match self.escalations.check_consume(esc_id, req).await {
                 Ok(rc) => rc,
                 Err(e) => {
                     return self.synthesized_block(
@@ -274,12 +281,11 @@ where
                     );
                 }
             };
-            // Mark the ticket consumed with the REAL decision seq.
+            // NOW transition the ticket to consumed (single-use). The row's
+            // decision_entry_seq (the ORIGINAL ESCALATE entry) is untouched —
+            // the retry's entry is in the ledger carrying the escalation_id.
             if rc == ReasonCode::EscalationApproved
-                && let Err(e) = self
-                    .escalations
-                    .consume(esc_id, req, entry_seq as i64)
-                    .await
+                && let Err(e) = self.escalations.consume(esc_id).await
             {
                 return self.synthesized_block(
                     ReasonCode::FailClosedPolicyUnavailable,
@@ -950,13 +956,15 @@ mod tests {
         ) -> Result<(), StoreError> {
             Ok(())
         }
-        async fn consume(
+        async fn check_consume(
             &self,
             _id: &str,
             _req: &DecisionRequest,
-            _seq: i64,
         ) -> Result<ReasonCode, StoreError> {
             Ok(ReasonCode::EscalationDenied)
+        }
+        async fn consume(&self, _id: &str) -> Result<(), StoreError> {
+            Ok(())
         }
         async fn attach(&self, _id: String, _seq: i64) -> Result<(), StoreError> {
             Ok(())
@@ -1325,13 +1333,21 @@ mod tests {
         assert_eq!(env.response.reason_code, ReasonCode::EscalationApproved);
         assert_eq!(env.response.escalation_id.as_deref(), Some(esc_id.as_str()));
 
-        // Ticket consumed (single-use).
+        // Ticket consumed (single-use) — and decision_entry_seq still points
+        // at the ORIGINAL ESCALATE entry (the retry's consume must NOT
+        // overwrite the FK evidence link).
+        let original_seq = esc.entry_seq as i64;
         let row = crate::storage::store::Store::from_test_pool(pool.clone())
             .get_escalation(&esc_id)
             .await
             .unwrap()
             .expect("ticket row");
         assert_eq!(row.status, "consumed");
+        assert_eq!(
+            row.decision_entry_seq,
+            Some(original_seq),
+            "decision_entry_seq must keep the original ESCALATE entry seq"
+        );
 
         // A second retry → already consumed (block) — also a fresh request_id.
         let mut retry2 = req(450);

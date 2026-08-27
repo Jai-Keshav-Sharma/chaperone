@@ -96,21 +96,20 @@ impl EscalationService {
         }
     }
 
-    /// Consume an approved escalation on retry (Flow 3 step 4): validates
-    /// exists · approved · unconsumed · params_binding_hash equality, then
-    /// marks consumed (single-use).
+    /// Validate a retry against the ticket WITHOUT transitioning it — the
+    /// read-only check the decision service performs BEFORE the retry's ledger
+    /// entry is appended (append-then-respond, Law 3). Returns the reason
+    /// code; ESCALATION_APPROVED means the ticket is approved + unconsumed +
+    /// params-bound and may proceed.
     ///
-    /// Returns the reason code for the retry decision:
-    ///   ESCALATION_APPROVED → the action may proceed (consumed here).
     ///   ESCALATION_PARAMS_MISMATCH → params differ from the approved binding.
     ///   ESCALATION_DENIED / ESCALATION_EXPIRED / ESCALATION_ALREADY_CONSUMED
     ///   → block. Unknown / pending / agent / tool mismatch → ESCALATION_DENIED
     ///   (silence = deny).
-    pub async fn consume(
+    pub async fn check_consume(
         &self,
         escalation_id: &str,
         req: &DecisionRequest,
-        decision_entry_seq: i64,
     ) -> Result<ReasonCode, StoreError> {
         let Some(row) = self.store.get_escalation(escalation_id).await? else {
             return Ok(ReasonCode::EscalationDenied);
@@ -125,19 +124,22 @@ impl EscalationService {
         if binding != row.params_binding_hash {
             return Ok(ReasonCode::EscalationParamsMismatch);
         }
-        match row.status.as_str() {
-            "approved" => {
-                self.store
-                    .consume_escalation(escalation_id, decision_entry_seq)
-                    .await?;
-                Ok(ReasonCode::EscalationApproved)
-            }
-            "denied" => Ok(ReasonCode::EscalationDenied),
-            "expired" => Ok(ReasonCode::EscalationExpired),
-            "consumed" => Ok(ReasonCode::EscalationAlreadyConsumed),
+        Ok(match row.status.as_str() {
+            "approved" => ReasonCode::EscalationApproved,
+            "denied" => ReasonCode::EscalationDenied,
+            "expired" => ReasonCode::EscalationExpired,
+            "consumed" => ReasonCode::EscalationAlreadyConsumed,
             // "pending" → not yet decided; silence means deny.
-            _ => Ok(ReasonCode::EscalationDenied),
-        }
+            _ => ReasonCode::EscalationDenied,
+        })
+    }
+
+    /// Transition an APPROVED ticket to consumed (single-use, Flow 3 step 4).
+    /// Called AFTER the retry's DECISION entry is appended — the row's
+    /// decision_entry_seq (the ORIGINAL ESCALATE entry) is left untouched;
+    /// the retry's own entry is in the ledger carrying the escalation_id.
+    pub async fn consume(&self, escalation_id: &str) -> Result<(), StoreError> {
+        self.store.consume_escalation(escalation_id).await
     }
 
     /// Sweep overdue pending escalations to expired, appending one
@@ -279,33 +281,9 @@ mod tests {
             .unwrap();
     }
 
-    /// Seed the chain so escalation FKs (decision_entry_seq →
-    /// ledger_entries.entry_seq) reference REAL entries. Returns the seq of
-    /// the appended DECISION entry.
-    async fn seed_chain(pool: &sqlx::SqlitePool) -> i64 {
-        let store = Store::from_test_pool(pool.clone());
-        crate::ledger::chain::append_genesis(&store)
-            .await
-            .expect("genesis");
-        let (seq, _) = crate::ledger::chain::append(
-            &store,
-            crate::ledger::chain::tests::decision_entry(
-                0,
-                "req_esc",
-                "ESCALATE",
-                vec!["r-escalate-mid"],
-                "2026-08-25T14:00:00Z",
-            ),
-        )
-        .await
-        .expect("append");
-        seq as i64
-    }
-
     #[sqlx::test]
     async fn approve_then_consume(pool: sqlx::SqlitePool) {
         seed_agent(&pool).await;
-        let decision_seq = seed_chain(&pool).await;
         let svc = service(pool.clone());
         svc.create(
             "esc_1",
@@ -324,24 +302,22 @@ mod tests {
             .expect("approve");
 
         // Retry with the SAME params → approved + consumed (single-use).
-        let rc = svc
-            .consume("esc_1", &req(450), decision_seq)
-            .await
-            .expect("consume");
-        assert_eq!(rc, ReasonCode::EscalationApproved);
+        assert_eq!(
+            svc.check_consume("esc_1", &req(450)).await.unwrap(),
+            ReasonCode::EscalationApproved
+        );
+        svc.consume("esc_1").await.expect("consume");
 
         // Second retry → already consumed.
-        let rc = svc
-            .consume("esc_1", &req(450), decision_seq)
-            .await
-            .expect("consume again");
-        assert_eq!(rc, ReasonCode::EscalationAlreadyConsumed);
+        assert_eq!(
+            svc.check_consume("esc_1", &req(450)).await.unwrap(),
+            ReasonCode::EscalationAlreadyConsumed
+        );
     }
 
     #[sqlx::test]
     async fn params_mismatch_blocks(pool: sqlx::SqlitePool) {
         seed_agent(&pool).await;
-        let decision_seq = seed_chain(&pool).await;
         let svc = service(pool.clone());
         svc.create(
             "esc_2",
@@ -359,17 +335,15 @@ mod tests {
             .expect("approve");
 
         // Retry with DIFFERENT params → params mismatch (bait-and-switch).
-        let rc = svc
-            .consume("esc_2", &req(999), decision_seq)
-            .await
-            .expect("consume");
-        assert_eq!(rc, ReasonCode::EscalationParamsMismatch);
+        assert_eq!(
+            svc.check_consume("esc_2", &req(999)).await.unwrap(),
+            ReasonCode::EscalationParamsMismatch
+        );
     }
 
     #[sqlx::test]
     async fn single_use_enforced(pool: sqlx::SqlitePool) {
         seed_agent(&pool).await;
-        let decision_seq = seed_chain(&pool).await;
         let svc = service(pool.clone());
         svc.create(
             "esc_3",
@@ -388,11 +362,12 @@ mod tests {
 
         // First retry consumes; the ticket is single-use.
         assert_eq!(
-            svc.consume("esc_3", &req(450), decision_seq).await.unwrap(),
+            svc.check_consume("esc_3", &req(450)).await.unwrap(),
             ReasonCode::EscalationApproved
         );
+        svc.consume("esc_3").await.expect("consume");
         assert_eq!(
-            svc.consume("esc_3", &req(450), decision_seq).await.unwrap(),
+            svc.check_consume("esc_3", &req(450)).await.unwrap(),
             ReasonCode::EscalationAlreadyConsumed
         );
     }
@@ -440,7 +415,7 @@ mod tests {
 
         // The escalation is now expired; a retry blocks with ESCALATION_EXPIRED.
         let rc = svc
-            .consume("esc_4", &req(450), 42)
+            .check_consume("esc_4", &req(450))
             .await
             .expect("consume after expiry");
         assert_eq!(rc, ReasonCode::EscalationExpired);
