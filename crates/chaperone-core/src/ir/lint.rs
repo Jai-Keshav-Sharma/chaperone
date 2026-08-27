@@ -5,7 +5,7 @@ use serde_json::Value as JsonValue;
 
 /// Static lint findings over the ACTIVE policy SET (docs/policy-ir.md).
 /// Lint is pure analysis over IR bytes — it never evaluates anything (Law).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize)]
 pub enum LintCode {
     DuplicateRuleId,
     NoRules,
@@ -16,13 +16,13 @@ pub enum LintCode {
     BroadTarget,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize)]
 pub enum Severity {
     Error,
     Warn,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct LintFinding {
     pub severity: Severity,
     pub code: LintCode,

@@ -10,6 +10,7 @@
 pub mod cache;
 pub mod canonical;
 pub mod clock;
+pub mod compiler;
 pub mod decision;
 pub mod engine;
 pub mod escalation;
