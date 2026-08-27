@@ -18,14 +18,14 @@ pub enum ExportFormat {
     Soc2,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct ExportItem {
     /// Path inside the export zip, e.g. "ledger/entries.jsonl".
     pub path: String,
     pub content: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct ExportBundle {
     pub manifest: JsonValue,
     pub items: Vec<ExportItem>,
