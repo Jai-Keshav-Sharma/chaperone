@@ -18,6 +18,7 @@ use crate::models::ir::{ConditionNode, Effect, Policy, Weekday};
 /// from the reference pass (Cedar's diagnostics only expose determining
 /// policies, not per-rule results); the VERDICT always comes from Cedar.
 /// Differential tests enforce the two paths agree on every input.
+#[derive(Debug)]
 pub struct CedarEngine {
     policies: Vec<Policy>,
     policy_set: PolicySet,

@@ -9,6 +9,7 @@
 
 pub mod canonical;
 pub mod clock;
+pub mod decision;
 pub mod engine;
 pub mod ir;
 pub mod ledger;

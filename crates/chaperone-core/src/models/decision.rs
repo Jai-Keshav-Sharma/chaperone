@@ -29,6 +29,19 @@ pub enum Surface {
     Sdk,
 }
 
+impl Surface {
+    /// The universal surface name the engine evaluates on (flows/05).
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Surface::ClaudeCode => "claude_code",
+            Surface::Cursor => "cursor",
+            Surface::McpGateway => "mcp_gateway",
+            Surface::McpShim => "mcp_shim",
+            Surface::Sdk => "sdk",
+        }
+    }
+}
+
 /// DecisionRequest.context — frozen wire contract (docs/api-contracts.md).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]

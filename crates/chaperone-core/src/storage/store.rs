@@ -291,6 +291,44 @@ impl Store {
         Ok(row)
     }
 
+    /// All active policy versions — the decision service's policy load path
+    /// (flows/02 tier 3: the DB is the source of truth).
+    pub async fn list_active_policies(&self) -> Result<Vec<PolicyVersionRow>, StoreError> {
+        let rows: Vec<PolicyVersionRow> = sqlx::query_as(
+            "SELECT policy_id, version, status, raw_sop_text, ir_json, cedar_text,
+                    policy_hash, conflict_report, test_report, compiler_model,
+                    created_by, approved_by, created_at, activated_at
+             FROM policy_versions
+             WHERE status = 'active'
+             ORDER BY policy_id, version",
+        )
+        .fetch_all(self.pool())
+        .await?;
+        Ok(rows)
+    }
+
+    /// Fetch the original DECISION ledger entry for a request_id — the
+    /// idempotent-replay answer path (flows/02 invariant 3).
+    pub async fn find_entry_by_request(
+        &self,
+        request_id: &str,
+    ) -> Result<Option<LedgerEntry>, ChainError> {
+        let row: Option<LedgerRow> = sqlx::query_as(
+            "SELECT entry_seq, entry_ts, previous_hash, entry_hash, entry_type,
+                    request_id, agent_id, tool, params_hash, tenant_id, decision,
+                    policy_id, policy_version, policy_hash, determining_rule_ids,
+                    reason_code, decision_trace, evaluation_latency_ms, escalation_id
+             FROM ledger_entries
+             WHERE request_id = ?1 AND entry_type = 'DECISION'
+             ORDER BY entry_seq DESC LIMIT 1",
+        )
+        .bind(request_id)
+        .fetch_optional(self.pool())
+        .await
+        .map_err(|e| ChainError::Storage(e.to_string()))?;
+        Ok(row.map(LedgerEntry::from))
+    }
+
     /// Activate a policy version (supersede the previous active if any).
     /// Runs in a transaction to maintain the one-active invariant.
     pub async fn activate_policy_version(
@@ -608,6 +646,18 @@ impl Store {
         .execute(self.pool())
         .await?;
         Ok(())
+    }
+
+    /// Read the current value of one derived counter (0.0 when no row exists —
+    /// the counter is a rebuildable read-acceleration index; missing = zero,
+    /// docs/data-model.md derived_counters).
+    pub async fn get_derived_counter(&self, counter_key: &str) -> Result<f64, StoreError> {
+        let row: Option<(f64,)> =
+            sqlx::query_as("SELECT value FROM derived_counters WHERE counter_key = ?1")
+                .bind(counter_key)
+                .fetch_optional(self.pool())
+                .await?;
+        Ok(row.map(|r| r.0).unwrap_or(0.0))
     }
 }
 
