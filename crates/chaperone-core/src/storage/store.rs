@@ -48,6 +48,15 @@ impl Store {
         Self::open_sqlite("sqlite::memory:").await
     }
 
+    /// Wrap an injected sqlx pool (sqlx::test — tests only). The pool already
+    /// has the schema applied by the test harness.
+    #[cfg(test)]
+    pub fn from_test_pool(pool: Pool<Sqlite>) -> Self {
+        Store {
+            inner: Inner::Sqlite(pool),
+        }
+    }
+
     fn pool(&self) -> &Pool<Sqlite> {
         match &self.inner {
             Inner::Sqlite(p) => p,
@@ -447,6 +456,90 @@ impl Store {
              FROM escalations WHERE escalation_id = ?1",
         )
         .bind(escalation_id)
+        .fetch_optional(self.pool())
+        .await?;
+        Ok(row)
+    }
+
+    /// Attach the deciding ledger entry to an escalation (set
+    /// decision_entry_seq) — called after the ESCALATE decision entry appends.
+    pub async fn attach_escalation_entry(
+        &self,
+        escalation_id: &str,
+        decision_entry_seq: i64,
+    ) -> Result<(), StoreError> {
+        let changes = sqlx::query(
+            "UPDATE escalations
+             SET decision_entry_seq = ?1
+             WHERE escalation_id = ?2 AND decision_entry_seq IS NULL",
+        )
+        .bind(decision_entry_seq)
+        .bind(escalation_id)
+        .execute(self.pool())
+        .await?;
+        if changes.rows_affected() == 0 {
+            return Err(StoreError::NotFound(format!(
+                "escalation {escalation_id} not found or already attached"
+            )));
+        }
+        Ok(())
+    }
+
+    /// Consume an approved escalation — the single-use transition (Flow 3
+    /// step 4). Only an APPROVED, unconsumed escalation can be consumed; the
+    /// row-lock (WHERE status='approved') makes concurrent consumption safe.
+    pub async fn consume_escalation(
+        &self,
+        escalation_id: &str,
+        decision_entry_seq: i64,
+    ) -> Result<(), StoreError> {
+        let changes = sqlx::query(
+            "UPDATE escalations
+             SET status = 'consumed', decision_entry_seq = ?1
+             WHERE escalation_id = ?2 AND status = 'approved'",
+        )
+        .bind(decision_entry_seq)
+        .bind(escalation_id)
+        .execute(self.pool())
+        .await?;
+        if changes.rows_affected() == 0 {
+            return Err(StoreError::NotFound(format!(
+                "escalation {escalation_id} not found or not approved"
+            )));
+        }
+        Ok(())
+    }
+
+    /// List pending escalations (sweeper + inbox).
+    pub async fn list_pending_escalations(&self) -> Result<Vec<EscalationRow>, StoreError> {
+        let rows: Vec<EscalationRow> = sqlx::query_as(
+            "SELECT escalation_id, request_id, agent_id, policy_id, policy_version,
+                    rule_ids, tool, proposed_params, params_binding_hash, status,
+                    resolver, resolution_note, created_at, expires_at, resolved_at,
+                    decision_entry_seq, resolution_entry_seq
+             FROM escalations WHERE status = 'pending'
+             ORDER BY created_at",
+        )
+        .fetch_all(self.pool())
+        .await?;
+        Ok(rows)
+    }
+
+    /// Fetch a policy version (for the escalation row + ledger pinning).
+    pub async fn get_policy_version(
+        &self,
+        policy_id: &str,
+        version: i64,
+    ) -> Result<Option<PolicyVersionRow>, StoreError> {
+        let row: Option<PolicyVersionRow> = sqlx::query_as(
+            "SELECT policy_id, version, status, raw_sop_text, ir_json, cedar_text,
+                    policy_hash, conflict_report, test_report, compiler_model,
+                    created_by, approved_by, created_at, activated_at
+             FROM policy_versions
+             WHERE policy_id = ?1 AND version = ?2",
+        )
+        .bind(policy_id)
+        .bind(version)
         .fetch_optional(self.pool())
         .await?;
         Ok(row)

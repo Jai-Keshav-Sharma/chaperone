@@ -3,20 +3,89 @@
 //! derived context → engine eval → SYNCHRONOUS ledger append → respond.
 //! Append-then-respond (Law 3); idempotent replay via request_id; mode is
 //! server-side config, never client-supplied (flows/02 invariant 8, flows/08
-//! rule 1).
+//! rule 1). ESCALATE creates a human-in-the-loop ticket (Flow 3); retries with
+//! escalation_id consume it (single-use, params-bound).
 
 use serde_json::{Value as JsonValue, json};
+use std::sync::Arc;
 use std::time::Instant;
 
 use crate::cache::policy_cache::{CompiledPolicies, PolicyProvider};
 use crate::engine::derive::{DerivedCounterValue, DerivedDeclaration, compute_derived};
 use crate::engine::{EngineDecision, EvalRequest};
+use crate::escalation::service::EscalationService;
 use crate::ledger::chain::append;
 use crate::ledger::{ChainError, ChainStore};
 use crate::models::decision::{Decision, DecisionRequest, DecisionResponse, TraceEntry};
 use crate::models::ledger::{EntryType, LedgerEntry};
 use crate::models::reason_code::ReasonCode;
 use crate::storage::store::{AgentIdentityRow, Store, StoreError};
+
+/// The escalation seam the decision service uses (Flow 3). Implemented by
+/// `EscalationService`; tests use a no-op seam so the pure decision tests
+/// need no sqlx store.
+#[allow(async_fn_in_trait)] // auto-trait bounds are not needed on this seam
+pub trait EscalationSeam: Send + Sync {
+    async fn create(
+        &self,
+        escalation_id: &str,
+        req: &DecisionRequest,
+        policy_id: &str,
+        policy_version: u32,
+        rule_ids: &[String],
+    ) -> Result<(), StoreError>;
+    async fn consume(
+        &self,
+        escalation_id: &str,
+        req: &DecisionRequest,
+        decision_entry_seq: i64,
+    ) -> Result<ReasonCode, StoreError>;
+    async fn attach(
+        &self,
+        escalation_id: String,
+        decision_entry_seq: i64,
+    ) -> Result<(), StoreError>;
+    async fn expires_at_for(&self, escalation_id: &str) -> String;
+}
+
+impl EscalationSeam for EscalationService {
+    async fn create(
+        &self,
+        escalation_id: &str,
+        req: &DecisionRequest,
+        policy_id: &str,
+        policy_version: u32,
+        rule_ids: &[String],
+    ) -> Result<(), StoreError> {
+        EscalationService::create(
+            self,
+            escalation_id,
+            req,
+            policy_id,
+            policy_version,
+            rule_ids,
+        )
+        .await
+    }
+    async fn consume(
+        &self,
+        escalation_id: &str,
+        req: &DecisionRequest,
+        decision_entry_seq: i64,
+    ) -> Result<ReasonCode, StoreError> {
+        EscalationService::consume(self, escalation_id, req, decision_entry_seq).await
+    }
+    async fn attach(
+        &self,
+        escalation_id: String,
+        decision_entry_seq: i64,
+    ) -> Result<(), StoreError> {
+        EscalationService::attach(self, escalation_id, decision_entry_seq).await
+    }
+    async fn expires_at_for(&self, escalation_id: &str) -> String {
+        EscalationService::expires_at_for(self, escalation_id).await
+    }
+}
 
 /// Fail-closed errors — never decisions. A 5xx triggers a BLOCK at the
 /// interceptor; a verdict is never returned from an error path (Law 1).
@@ -78,25 +147,28 @@ pub trait DerivedCounterSource: Send + Sync {
 /// Generic over the ledger store, the policy cache (provider), and the
 /// derived-counter source so tests use in-memory seams and production uses
 /// sqlx Store.
-pub struct DecisionService<S, P, D> {
+pub struct DecisionService<S, P, D, E> {
     store: S,
     policies: P,
     counters: D,
+    escalations: Arc<E>,
     mode: ServiceMode,
     ungoverned_default: UngovernedDefault,
     declarations: Vec<DerivedDeclaration>,
 }
 
-impl<S, P, D> DecisionService<S, P, D>
+impl<S, P, D, E> DecisionService<S, P, D, E>
 where
     S: ChainStore + AgentSource,
     P: PolicyProvider,
     D: DerivedCounterSource,
+    E: EscalationSeam,
 {
     pub fn new(
         store: S,
         policies: P,
         counters: D,
+        escalations: Arc<E>,
         mode: ServiceMode,
         ungoverned_default: UngovernedDefault,
         declarations: Vec<DerivedDeclaration>,
@@ -105,6 +177,7 @@ where
             store,
             policies,
             counters,
+            escalations,
             mode,
             ungoverned_default,
             declarations,
@@ -165,6 +238,78 @@ where
             }
         };
         let derived_context = compute_derived(self.declarations(), &derived_values);
+
+        // --- step 3.5: escalation consumption (Flow 3 step 4) ---
+        // A retry carrying an escalation_id is resolved against the ticket —
+        // approved + unconsumed + params-bound → ALLOW (consumed); anything
+        // else → BLOCK with the ESCALATION_* reason. The DECISION entry for
+        // the retry is appended before responding (append-then-respond).
+        if let Some(esc_id) = &req.escalation_id {
+            // Resolve the ticket (read-only; the consume transition happens
+            // after the entry appends, with the REAL seq).
+            let rc = match self.escalations.consume(esc_id, req, 0).await {
+                Ok(rc) => rc,
+                Err(e) => {
+                    return self.synthesized_block(
+                        ReasonCode::FailClosedPolicyUnavailable,
+                        start,
+                        DecisionError::PolicyUnavailable(format!("escalation lookup failed: {e}")),
+                    );
+                }
+            };
+            let (decision, reason) = if rc == ReasonCode::EscalationApproved {
+                (Decision::Allow, rc)
+            } else {
+                (Decision::Block, rc)
+            };
+            let entry = self.build_entry(req, &decision, &reason, &[], &[], &compiled);
+            let append_result = append(&self.store, entry).await;
+            let (entry_seq, entry_hash) = match append_result {
+                Ok(seq_hash) => seq_hash,
+                Err(e) => {
+                    return self.synthesized_block(
+                        ReasonCode::FailClosedLedgerUnavailable,
+                        start,
+                        DecisionError::LedgerUnavailable(e.to_string()),
+                    );
+                }
+            };
+            // Mark the ticket consumed with the REAL decision seq.
+            if rc == ReasonCode::EscalationApproved
+                && let Err(e) = self
+                    .escalations
+                    .consume(esc_id, req, entry_seq as i64)
+                    .await
+            {
+                return self.synthesized_block(
+                    ReasonCode::FailClosedPolicyUnavailable,
+                    start,
+                    DecisionError::PolicyUnavailable(format!("escalation consume failed: {e}")),
+                );
+            }
+            let (policy_id, policy_version, policy_hash) = compiled
+                .governing()
+                .map(|(id, v, h)| (id.to_string(), v, h.to_string()))
+                .unwrap_or_else(|| ("__none__".to_string(), 0, "0".repeat(64)));
+            return DecisionEnvelope {
+                response: DecisionResponse {
+                    decision,
+                    reason_code: reason,
+                    determining_rule_ids: vec![],
+                    policy_id,
+                    policy_version,
+                    policy_hash,
+                    entry_seq,
+                    entry_hash,
+                    escalation_id: Some(esc_id.clone()),
+                    escalation_expires_at: None,
+                    trace: vec![],
+                    derived_context,
+                    evaluation_latency_ms: elapsed_ms(start),
+                },
+                error: None,
+            };
+        }
 
         // --- step 4: engine evaluation ---
         let outcome = compiled.engine().evaluate(&EvalRequest {
@@ -288,6 +433,55 @@ where
             }
         };
 
+        // --- step 5.5: ESCALATE → create the human-in-the-loop ticket ---
+        // (Flow 3 step 1). Enforce mode only — shadow NEVER creates tickets
+        // (flows/08 rule 3: ledger + metrics only). The DECISION entry already
+        // appended; the ticket is attached to its seq.
+        let mut escalation_id_out = None;
+        let mut escalation_expires_at = None;
+        if decision == Decision::Escalate && self.mode == ServiceMode::Enforce {
+            let esc_id = format!("esc_{}", uuid::Uuid::new_v4().simple());
+            let (pid, pver, _) = compiled
+                .governing()
+                .map(|(id, v, h)| (id.to_string(), v, h.to_string()))
+                .unwrap_or_else(|| ("__none__".to_string(), 0, "0".repeat(64)));
+            match self
+                .escalations
+                .create(&esc_id, req, &pid, pver, &rule_ids)
+                .await
+            {
+                Ok(()) => {
+                    // Attach the decision entry seq (FK to ledger_entries).
+                    if self
+                        .escalations
+                        .attach(esc_id.clone(), entry_seq as i64)
+                        .await
+                        .is_err()
+                    {
+                        // The ticket exists but the link failed — surface a
+                        // ledger-class failure (fail-closed: no verdict).
+                        return self.synthesized_block(
+                            ReasonCode::FailClosedLedgerUnavailable,
+                            start,
+                            DecisionError::LedgerUnavailable(format!(
+                                "escalation {esc_id} attach failed"
+                            )),
+                        );
+                    }
+                    escalation_id_out = Some(esc_id.clone());
+                    escalation_expires_at = Some(self.escalations.expires_at_for(&esc_id).await);
+                }
+                Err(e) => {
+                    // Ticket creation failed → ledger-class failure (fail-closed).
+                    return self.synthesized_block(
+                        ReasonCode::FailClosedLedgerUnavailable,
+                        start,
+                        DecisionError::LedgerUnavailable(format!("escalation create failed: {e}")),
+                    );
+                }
+            }
+        }
+
         // --- step 6: respond (the entry exists BEFORE this response) ---
         let (policy_id, policy_version, policy_hash) = compiled
             .governing()
@@ -302,8 +496,8 @@ where
             policy_hash,
             entry_seq,
             entry_hash,
-            escalation_id: None,
-            escalation_expires_at: None,
+            escalation_id: escalation_id_out,
+            escalation_expires_at,
             trace,
             derived_context,
             evaluation_latency_ms: elapsed_ms(start),
@@ -741,15 +935,47 @@ mod tests {
         }
     }
 
+    /// A no-op escalation seam for the pure decision tests (they never hit an
+    /// ESCALATE verdict, so no ticket machinery is needed).
+    struct NoopEscalation;
+
+    impl EscalationSeam for NoopEscalation {
+        async fn create(
+            &self,
+            _id: &str,
+            _req: &DecisionRequest,
+            _pid: &str,
+            _pver: u32,
+            _rules: &[String],
+        ) -> Result<(), StoreError> {
+            Ok(())
+        }
+        async fn consume(
+            &self,
+            _id: &str,
+            _req: &DecisionRequest,
+            _seq: i64,
+        ) -> Result<ReasonCode, StoreError> {
+            Ok(ReasonCode::EscalationDenied)
+        }
+        async fn attach(&self, _id: String, _seq: i64) -> Result<(), StoreError> {
+            Ok(())
+        }
+        async fn expires_at_for(&self, _id: &str) -> String {
+            String::new()
+        }
+    }
+
     fn service(
         chain: MemChain,
         provider: MemPolicyProvider,
         mode: ServiceMode,
-    ) -> DecisionService<MemChain, MemPolicyProvider, MemCounterSource> {
+    ) -> DecisionService<MemChain, MemPolicyProvider, MemCounterSource, NoopEscalation> {
         DecisionService::new(
             chain,
             provider,
             MemCounterSource::default(),
+            std::sync::Arc::new(NoopEscalation),
             mode,
             UngovernedDefault::Block,
             vec![],
@@ -759,6 +985,48 @@ mod tests {
     fn policy_provider() -> MemPolicyProvider {
         MemPolicyProvider::ok(vec![active_policy(
             refund_policy(),
+            "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+        )])
+    }
+
+    /// A policy with an escalate rule — the escalation integration tests need
+    /// an ESCALATE verdict (the refund fixture is allow/block only).
+    fn escalate_policy() -> Policy {
+        serde_json::from_value(json!({
+            "ir_version": "1",
+            "policy_id": "pol_refunds",
+            "version": 3,
+            "description": "refund policy with escalate",
+            "rules": [
+                {
+                    "rule_id": "r-allow-small",
+                    "description": "allow refunds up to 200",
+                    "effect": "allow",
+                    "target": {"tools": ["stripe.refunds.create"]},
+                    "condition": {"op": "lte", "left": {"param": "amount"}, "right": {"value": 200}}
+                },
+                {
+                    "rule_id": "r-escalate-mid",
+                    "description": "escalate refunds 100..1000",
+                    "effect": "escalate",
+                    "target": {"tools": ["stripe.refunds.create"]},
+                    "condition": {"op": "gte", "left": {"param": "amount"}, "right": {"value": 100}}
+                },
+                {
+                    "rule_id": "r-block-large",
+                    "description": "block refunds over 1000",
+                    "effect": "block",
+                    "target": {"tools": ["stripe.refunds.create"]},
+                    "condition": {"op": "gt", "left": {"param": "amount"}, "right": {"value": 1000}}
+                }
+            ]
+        }))
+        .expect("fixture")
+    }
+
+    fn escalate_provider() -> MemPolicyProvider {
+        MemPolicyProvider::ok(vec![active_policy(
+            escalate_policy(),
             "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
         )])
     }
@@ -963,5 +1231,140 @@ mod tests {
         );
         assert_eq!(a, b);
         assert_eq!(a.len(), 64);
+    }
+
+    // --- escalation integration (Flow 3 through the decision service) ------
+
+    /// Build a service over a REAL sqlx pool so the ledger + escalation FK
+    /// chain share ONE store (the append lands in the pool the FK references).
+    fn sqlx_service(
+        pool: sqlx::SqlitePool,
+        mode: ServiceMode,
+    ) -> DecisionService<Store, MemPolicyProvider, MemCounterSource, EscalationService> {
+        let store = crate::storage::store::Store::from_test_pool(pool.clone());
+        let escalations = std::sync::Arc::new(crate::escalation::service::EscalationService::new(
+            store.clone(),
+            std::sync::Arc::new(crate::clock::SystemClock),
+            900,
+        ));
+        DecisionService::new(
+            store,
+            escalate_provider(),
+            MemCounterSource::default(),
+            escalations,
+            mode,
+            UngovernedDefault::Block,
+            vec![],
+        )
+    }
+
+    async fn seed_sqlx_agent(pool: &sqlx::SqlitePool) {
+        crate::storage::store::Store::from_test_pool(pool.clone())
+            .upsert_agent_identity(&known_agent(true))
+            .await
+            .unwrap();
+    }
+
+    /// A refund of 450 hits the escalate rule → ESCALATE + a ticket is created
+    /// (enforce mode), with escalation_id + expires_at in the response.
+    #[sqlx::test]
+    async fn escalate_creates_ticket(pool: sqlx::SqlitePool) {
+        seed_sqlx_agent(&pool).await;
+        let store = crate::storage::store::Store::from_test_pool(pool.clone());
+        crate::ledger::chain::append_genesis(&store).await.unwrap();
+        let svc = sqlx_service(pool.clone(), ServiceMode::Enforce);
+
+        let env = svc.decide(&req(450)).await;
+        assert!(env.error.is_none(), "err: {:?}", env.error);
+        let resp = env.response;
+        assert_eq!(resp.decision, Decision::Escalate);
+        assert_eq!(resp.reason_code, ReasonCode::RuleMatch);
+        let esc_id = resp.escalation_id.expect("ticket id");
+        assert!(esc_id.starts_with("esc_"), "esc_ + uuid");
+        assert!(
+            resp.escalation_expires_at.is_some(),
+            "expires_at present on ESCALATE"
+        );
+
+        // The ticket row exists (pending) with the decision entry attached.
+        let row = crate::storage::store::Store::from_test_pool(pool.clone())
+            .get_escalation(&esc_id)
+            .await
+            .unwrap()
+            .expect("ticket row");
+        assert_eq!(row.status, "pending");
+        assert_eq!(row.decision_entry_seq, Some(resp.entry_seq as i64));
+    }
+
+    /// Approve the ticket, retry with the SAME escalation_id + params →
+    /// ALLOW (ESCALATION_APPROVED), ticket consumed, DECISION entry appended.
+    #[sqlx::test]
+    async fn approved_retry_allows(pool: sqlx::SqlitePool) {
+        seed_sqlx_agent(&pool).await;
+        let store = crate::storage::store::Store::from_test_pool(pool.clone());
+        crate::ledger::chain::append_genesis(&store).await.unwrap();
+        let svc = sqlx_service(pool.clone(), ServiceMode::Enforce);
+
+        let esc = svc.decide(&req(450)).await.response;
+        let esc_id = esc.escalation_id.expect("ticket");
+
+        // Human approves via the inbox/CLI path.
+        crate::storage::store::Store::from_test_pool(pool.clone())
+            .resolve_escalation(&esc_id, "approved", Some("manager"), Some("ok"), None)
+            .await
+            .expect("approve");
+
+        // Retry the identical call with escalation_id — a NEW request_id (the
+        // retry is a new decision event; escalation_id is the correlation key).
+        let mut retry = req(450);
+        retry.request_id = "req_retry_1".into();
+        retry.escalation_id = Some(esc_id.clone());
+        let env = svc.decide(&retry).await;
+        assert!(env.error.is_none(), "err: {:?}", env.error);
+        assert_eq!(env.response.decision, Decision::Allow);
+        assert_eq!(env.response.reason_code, ReasonCode::EscalationApproved);
+        assert_eq!(env.response.escalation_id.as_deref(), Some(esc_id.as_str()));
+
+        // Ticket consumed (single-use).
+        let row = crate::storage::store::Store::from_test_pool(pool.clone())
+            .get_escalation(&esc_id)
+            .await
+            .unwrap()
+            .expect("ticket row");
+        assert_eq!(row.status, "consumed");
+
+        // A second retry → already consumed (block) — also a fresh request_id.
+        let mut retry2 = req(450);
+        retry2.request_id = "req_retry_2".into();
+        retry2.escalation_id = Some(esc_id);
+        let env2 = svc.decide(&retry2).await;
+        assert_eq!(env2.response.decision, Decision::Block);
+        assert_eq!(
+            env2.response.reason_code,
+            ReasonCode::EscalationAlreadyConsumed
+        );
+    }
+
+    /// Shadow mode: ESCALATE verdict → WOULD_ESCALATE, and NO ticket is
+    /// created (flows/08 rule 3: ledger + metrics only).
+    #[sqlx::test]
+    async fn shadow_no_ticket(pool: sqlx::SqlitePool) {
+        seed_sqlx_agent(&pool).await;
+        let store = crate::storage::store::Store::from_test_pool(pool.clone());
+        crate::ledger::chain::append_genesis(&store).await.unwrap();
+        let svc = sqlx_service(pool.clone(), ServiceMode::Shadow);
+
+        let env = svc.decide(&req(450)).await;
+        assert!(env.error.is_none(), "err: {:?}", env.error);
+        assert_eq!(env.response.decision, Decision::WouldEscalate);
+        assert!(
+            env.response.escalation_id.is_none(),
+            "shadow never creates a ticket"
+        );
+        assert!(env.response.escalation_expires_at.is_none());
+
+        // The ledger entry is WOULD_ESCALATE (flows/08 rule 2).
+        let last = store.last_entry().await.unwrap().expect("last entry");
+        assert_eq!(last.decision, "WOULD_ESCALATE");
     }
 }
