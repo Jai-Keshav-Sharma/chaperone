@@ -670,9 +670,10 @@ mod tests {
         }
     }
 
-    /// One-active-policy partial unique index enforced.
+    /// One-active-policy: happy path — activate v1, insert v2 draft, activate v2,
+    /// verify v1 superseded and v2 is the sole active version.
     #[sqlx::test]
-    async fn one_active_policy_invariant(pool: sqlx::SqlitePool) {
+    async fn one_active_policy_happy_path(pool: sqlx::SqlitePool) {
         let store = Store {
             inner: Inner::Sqlite(pool),
         };
@@ -713,6 +714,78 @@ mod tests {
         let active = store.get_active_policy("pol_a").await.unwrap().unwrap();
         assert_eq!(active.version, 2);
         assert_eq!(active.status, "active");
+    }
+
+    /// One-active-policy: invariant violation — inserting a second "active"
+    /// version directly (bypassing activate_policy_version) must be rejected
+    /// by the partial unique index ux_policy_one_active.
+    #[sqlx::test]
+    async fn one_active_policy_rejects_direct_violation(pool: sqlx::SqlitePool) {
+        let store = Store {
+            inner: Inner::Sqlite(pool),
+        };
+
+        store
+            .upsert_policy("pol_b", "Policy B", None)
+            .await
+            .unwrap();
+
+        let base = PolicyVersionRow {
+            policy_id: "pol_b".into(),
+            version: 1,
+            status: "active".into(),
+            raw_sop_text: None,
+            ir_json: r#"{"permit":{}}"#.into(),
+            cedar_text: "permit(principal, action, resource);".into(),
+            policy_hash: "h1".repeat(3),
+            conflict_report: None,
+            test_report: None,
+            compiler_model: None,
+            created_by: Some("test".into()),
+            approved_by: Some("admin".into()),
+            created_at: "2026-08-25T00:00:00Z".into(),
+            activated_at: None,
+        };
+        store.insert_policy_version(&base).await.unwrap();
+        store.activate_policy_version("pol_b", 1).await.unwrap();
+
+        // Try to insert a second active version directly — violates the index.
+        let duplicate_active = PolicyVersionRow {
+            version: 2,
+            status: "active".into(),
+            ..base.clone()
+        };
+        let err = store
+            .insert_policy_version(&duplicate_active)
+            .await
+            .expect_err("second active must be rejected");
+        assert!(
+            err.to_string().contains("UNIQUE constraint"),
+            "expected UNIQUE constraint error, got: {err}"
+        );
+    }
+
+    /// One-active-policy: activate_policy_version rejects when the target
+    /// version does not exist.
+    #[sqlx::test]
+    async fn one_active_policy_activate_nonexistent(pool: sqlx::SqlitePool) {
+        let store = Store {
+            inner: Inner::Sqlite(pool),
+        };
+
+        store
+            .upsert_policy("pol_c", "Policy C", None)
+            .await
+            .unwrap();
+
+        let err = store
+            .activate_policy_version("pol_c", 999)
+            .await
+            .expect_err("activating nonexistent version must fail");
+        assert!(
+            matches!(err, StoreError::NotFound(_)),
+            "expected NotFound, got: {err}"
+        );
     }
 
     /// params_binding_hash roundtrip through the escalations table.
