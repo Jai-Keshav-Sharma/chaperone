@@ -76,10 +76,14 @@ impl CompiledPolicies {
 
 /// The policy loader — the DB is the source of truth (cache tier 3; flows/02
 /// tier 3: "Down → BLOCK (FAIL_CLOSED_POLICY_UNAVAILABLE)"). A cache outage
-/// can never change a verdict.
-#[allow(async_fn_in_trait)] // auto-trait bounds are not needed on this seam
+/// can never change a verdict. Dyn-safe (boxed future) so the server can hold
+/// `Arc<dyn PolicyProvider>`.
 pub trait PolicyProvider: Send + Sync {
-    async fn load(&self) -> Result<CompiledPolicies, DecisionError>;
+    fn load(
+        &self,
+    ) -> std::pin::Pin<
+        Box<dyn std::future::Future<Output = Result<CompiledPolicies, DecisionError>> + Send + '_>,
+    >;
 }
 
 /// SQLite-backed loader: reads the active policy set from the Store.
@@ -91,10 +95,9 @@ impl StorePolicyProvider {
     pub fn new(store: Store) -> Self {
         StorePolicyProvider { store }
     }
-}
 
-impl PolicyProvider for StorePolicyProvider {
-    async fn load(&self) -> Result<CompiledPolicies, DecisionError> {
+    /// The async load (the trait's `load` delegates here).
+    pub async fn load_async(&self) -> Result<CompiledPolicies, DecisionError> {
         let rows: Vec<PolicyVersionRow> = self
             .store
             .list_active_policies()
@@ -132,6 +135,16 @@ impl PolicyProvider for StorePolicyProvider {
             });
         }
         CompiledPolicies::compile(active).map_err(|e| DecisionError::PolicyCompile(e.to_string()))
+    }
+}
+
+impl PolicyProvider for StorePolicyProvider {
+    fn load(
+        &self,
+    ) -> std::pin::Pin<
+        Box<dyn std::future::Future<Output = Result<CompiledPolicies, DecisionError>> + Send + '_>,
+    > {
+        Box::pin(async move { self.load_async().await })
     }
 }
 
@@ -278,8 +291,12 @@ impl<P: PolicyProvider> PolicyCache<P> {
 /// tier-3 `PolicyProvider` and adds TTL + optional Redis. The decision service
 /// uses `PolicyCache<StorePolicyProvider>` as its `P: PolicyProvider`.
 impl<P: PolicyProvider + Send + Sync> PolicyProvider for PolicyCache<P> {
-    async fn load(&self) -> Result<CompiledPolicies, DecisionError> {
-        self.get().await
+    fn load(
+        &self,
+    ) -> std::pin::Pin<
+        Box<dyn std::future::Future<Output = Result<CompiledPolicies, DecisionError>> + Send + '_>,
+    > {
+        Box::pin(async move { self.get().await })
     }
 }
 
@@ -386,10 +403,20 @@ mod tests {
     }
 
     impl PolicyProvider for MemProvider {
-        async fn load(&self) -> Result<CompiledPolicies, DecisionError> {
-            self.loads
-                .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-            self.result.lock().unwrap().clone()
+        fn load(
+            &self,
+        ) -> std::pin::Pin<
+            Box<
+                dyn std::future::Future<Output = Result<CompiledPolicies, DecisionError>>
+                    + Send
+                    + '_,
+            >,
+        > {
+            Box::pin(async move {
+                self.loads
+                    .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                self.result.lock().unwrap().clone()
+            })
         }
     }
 

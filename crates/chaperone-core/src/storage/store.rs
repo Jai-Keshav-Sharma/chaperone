@@ -212,8 +212,16 @@ impl ChainStore for Store {
 // Policy operations (Phase 7 decision-service seam)
 // ---------------------------------------------------------------------------
 
-/// Row shape for `policy_versions`.
+/// Row shape for the `policies` shell table (the /v1/policies list route).
 #[derive(Debug, Clone, sqlx::FromRow)]
+pub struct PolicyShellRow {
+    pub policy_id: String,
+    pub name: String,
+    pub active_version: Option<i64>,
+}
+
+/// Row shape for `policy_versions`.
+#[derive(Debug, Clone, serde::Serialize, sqlx::FromRow)]
 pub struct PolicyVersionRow {
     pub policy_id: String,
     pub version: i64,
@@ -250,6 +258,16 @@ impl Store {
         .execute(self.pool())
         .await?;
         Ok(())
+    }
+
+    /// All policy shells (the /v1/policies list route).
+    pub async fn list_policies(&self) -> Result<Vec<PolicyShellRow>, StoreError> {
+        let rows: Vec<PolicyShellRow> = sqlx::query_as(
+            "SELECT policy_id, name, active_version FROM policies ORDER BY policy_id",
+        )
+        .fetch_all(self.pool())
+        .await?;
+        Ok(rows)
     }
 
     /// Insert a new policy version. Enforces one-active invariant at the
@@ -338,6 +356,68 @@ impl Store {
         Ok(row.map(LedgerEntry::from))
     }
 
+    /// Ledger entries after a seq, bounded (the /v1/ledger/entries route).
+    pub async fn list_ledger_entries(
+        &self,
+        after_seq: u64,
+        limit: u64,
+    ) -> Result<Vec<LedgerEntry>, StoreError> {
+        let rows: Vec<LedgerRow> = sqlx::query_as(
+            "SELECT entry_seq, entry_ts, previous_hash, entry_hash, entry_type,
+                    request_id, agent_id, tool, params_hash, tenant_id, decision,
+                    policy_id, policy_version, policy_hash, determining_rule_ids,
+                    reason_code, decision_trace, evaluation_latency_ms, escalation_id
+             FROM ledger_entries
+             WHERE entry_seq > ?1
+             ORDER BY entry_seq
+             LIMIT ?2",
+        )
+        .bind(after_seq as i64)
+        .bind(limit as i64)
+        .fetch_all(self.pool())
+        .await?;
+        Ok(rows.into_iter().map(LedgerEntry::from).collect())
+    }
+
+    /// The full chain (the /v1/ledger/verify route).
+    pub async fn all_ledger_entries(&self) -> Result<Vec<LedgerEntry>, StoreError> {
+        let rows: Vec<LedgerRow> = sqlx::query_as(
+            "SELECT entry_seq, entry_ts, previous_hash, entry_hash, entry_type,
+                    request_id, agent_id, tool, params_hash, tenant_id, decision,
+                    policy_id, policy_version, policy_hash, determining_rule_ids,
+                    reason_code, decision_trace, evaluation_latency_ms, escalation_id
+             FROM ledger_entries ORDER BY entry_seq",
+        )
+        .fetch_all(self.pool())
+        .await?;
+        Ok(rows.into_iter().map(LedgerEntry::from).collect())
+    }
+
+    /// Build an inclusion-proof bundle for one entry (the /v1/ledger/prove
+    /// route): the leaf hash + path + root over the full chain.
+    pub async fn prove_entry(&self, seq: u64) -> Result<Option<serde_json::Value>, StoreError> {
+        let entries = self.all_ledger_entries().await?;
+        let index = seq as usize;
+        if index >= entries.len() {
+            return Ok(None);
+        }
+        let leaves: Vec<String> = entries.iter().map(|e| e.entry_hash.clone()).collect();
+        let Some(leaf) = leaves.get(index).cloned() else {
+            return Ok(None);
+        };
+        let Some(path) = crate::ledger::merkle::inclusion_proof(&leaves, index) else {
+            return Ok(None);
+        };
+        let root = crate::ledger::merkle::root_hash(&leaves).unwrap_or_default();
+        Ok(Some(serde_json::json!({
+            "seq": seq,
+            "entry_hash": leaf,
+            "root_hash": root,
+            "tree_size": leaves.len(),
+            "path": path,
+        })))
+    }
+
     /// Activate a policy version (supersede the previous active if any).
     /// Runs in a transaction to maintain the one-active invariant.
     pub async fn activate_policy_version(
@@ -389,7 +469,7 @@ impl Store {
 // ---------------------------------------------------------------------------
 
 /// Row shape for `escalations`.
-#[derive(Debug, Clone, sqlx::FromRow)]
+#[derive(Debug, Clone, serde::Serialize, sqlx::FromRow)]
 pub struct EscalationRow {
     pub escalation_id: String,
     pub request_id: String,
@@ -543,6 +623,25 @@ impl Store {
         Ok(row)
     }
 
+    /// All versions of a policy (the /v1/policies/{id}/versions route).
+    pub async fn list_policy_versions(
+        &self,
+        policy_id: &str,
+    ) -> Result<Vec<PolicyVersionRow>, StoreError> {
+        let rows: Vec<PolicyVersionRow> = sqlx::query_as(
+            "SELECT policy_id, version, status, raw_sop_text, ir_json, cedar_text,
+                    policy_hash, conflict_report, test_report, compiler_model,
+                    created_by, approved_by, created_at, activated_at
+             FROM policy_versions
+             WHERE policy_id = ?1
+             ORDER BY version",
+        )
+        .bind(policy_id)
+        .fetch_all(self.pool())
+        .await?;
+        Ok(rows)
+    }
+
     /// Resolve an escalation (approve/deny/consume). Runs in a transaction.
     pub async fn resolve_escalation(
         &self,
@@ -595,7 +694,7 @@ impl Store {
 // ---------------------------------------------------------------------------
 
 /// Row shape for `ledger_checkpoints`.
-#[derive(Debug, Clone, sqlx::FromRow)]
+#[derive(Debug, Clone, serde::Serialize, sqlx::FromRow)]
 pub struct CheckpointRow {
     pub checkpoint_id: i64,
     pub tree_size: i64,
@@ -643,6 +742,35 @@ impl Store {
         .await?;
         Ok(row)
     }
+
+    /// All checkpoints, newest first (the /v1/ledger/checkpoints route).
+    pub async fn list_checkpoints(&self) -> Result<Vec<CheckpointRow>, StoreError> {
+        let rows: Vec<CheckpointRow> = sqlx::query_as(
+            "SELECT checkpoint_id, tree_size, root_hash, checkpoint_text,
+                    key_id, signature, anchored_rekor, anchored_tsa, created_at
+             FROM ledger_checkpoints
+             ORDER BY checkpoint_id DESC",
+        )
+        .fetch_all(self.pool())
+        .await?;
+        Ok(rows)
+    }
+
+    /// One checkpoint by id.
+    pub async fn get_checkpoint(
+        &self,
+        checkpoint_id: i64,
+    ) -> Result<Option<CheckpointRow>, StoreError> {
+        let row: Option<CheckpointRow> = sqlx::query_as(
+            "SELECT checkpoint_id, tree_size, root_hash, checkpoint_text,
+                    key_id, signature, anchored_rekor, anchored_tsa, created_at
+             FROM ledger_checkpoints WHERE checkpoint_id = ?1",
+        )
+        .bind(checkpoint_id)
+        .fetch_optional(self.pool())
+        .await?;
+        Ok(row)
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -650,7 +778,7 @@ impl Store {
 // ---------------------------------------------------------------------------
 
 /// Row shape for `agent_identities`.
-#[derive(Debug, Clone, sqlx::FromRow)]
+#[derive(Debug, Clone, serde::Serialize, sqlx::FromRow)]
 pub struct AgentIdentityRow {
     pub agent_id: String,
     pub name: String,
@@ -700,6 +828,57 @@ impl Store {
              FROM agent_identities WHERE agent_id = ?1",
         )
         .bind(agent_id)
+        .fetch_optional(self.pool())
+        .await?;
+        Ok(row)
+    }
+}
+
+// ---------------------------------------------------------------------------
+// API key operations (Phase 9 — bearer auth; keys hashed at rest)
+// ---------------------------------------------------------------------------
+
+/// Row shape for `agent_api_keys` (docs/data-model.md: sha256 of the bearer
+/// key; plaintext never stored; NULL agent_id = admin key).
+#[derive(Debug, Clone, serde::Serialize, sqlx::FromRow)]
+pub struct ApiKeyRow {
+    pub key_hash: String,
+    pub agent_id: Option<String>,
+    pub is_admin: bool,
+    pub created_at: String,
+    pub last_used_at: Option<String>,
+    pub expires_at: Option<String>,
+    pub revoked_at: Option<String>,
+}
+
+impl Store {
+    /// Insert an API key row (key_hash is sha256 of the bearer key — the
+    /// plaintext never touches the DB).
+    pub async fn insert_api_key(&self, row: &ApiKeyRow) -> Result<(), StoreError> {
+        sqlx::query(
+            "INSERT INTO agent_api_keys (
+                key_hash, agent_id, is_admin, created_at, last_used_at, expires_at, revoked_at
+             ) VALUES (?1,?2,?3,?4,?5,?6,?7)",
+        )
+        .bind(&row.key_hash)
+        .bind(&row.agent_id)
+        .bind(row.is_admin)
+        .bind(&row.created_at)
+        .bind(&row.last_used_at)
+        .bind(&row.expires_at)
+        .bind(&row.revoked_at)
+        .execute(self.pool())
+        .await?;
+        Ok(())
+    }
+
+    /// Look up a key by its sha256 hash. Returns None for unknown keys.
+    pub async fn get_api_key(&self, key_hash: &str) -> Result<Option<ApiKeyRow>, StoreError> {
+        let row: Option<ApiKeyRow> = sqlx::query_as(
+            "SELECT key_hash, agent_id, is_admin, created_at, last_used_at, expires_at, revoked_at
+             FROM agent_api_keys WHERE key_hash = ?1",
+        )
+        .bind(key_hash)
         .fetch_optional(self.pool())
         .await?;
         Ok(row)

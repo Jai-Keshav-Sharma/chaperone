@@ -7,4 +7,19 @@ license.workspace = true
 authors.workspace = true
 
 [dependencies]
+axum = "0.8"
 chaperone-core = { path = "../chaperone-core" }
+chrono = { version = "0.4.45", default-features = false, features = ["clock", "std", "serde"] }
+futures-util = "0.3"
+headers = "0.4"
+http = "1"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.151"
+sha2 = "0.11.0"
+tokio = { version = "1.53.1", features = ["macros", "rt-multi-thread"] }
+tower-http = { version = "0.6", features = ["trace"] }
+tracing = "0.1"
+
+[dev-dependencies]
+http-body-util = "0.1.5"
+tower = { version = "0.5", features = ["util"] }

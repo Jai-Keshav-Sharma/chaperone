@@ -862,8 +862,16 @@ mod tests {
     }
 
     impl PolicyProvider for MemPolicyProvider {
-        async fn load(&self) -> Result<CompiledPolicies, DecisionError> {
-            self.compiled.lock().unwrap().clone()
+        fn load(
+            &self,
+        ) -> std::pin::Pin<
+            Box<
+                dyn std::future::Future<Output = Result<CompiledPolicies, DecisionError>>
+                    + Send
+                    + '_,
+            >,
+        > {
+            Box::pin(async move { self.compiled.lock().unwrap().clone() })
         }
     }
 
