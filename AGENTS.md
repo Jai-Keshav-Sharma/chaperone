@@ -69,20 +69,43 @@ All design decisions are LOCKED. Read these before writing code, in this order:
 
 ## Skills (multi-harness — identical behavior for every tool)
 
-The `karpathy-guidelines` skill (behavioral coding guidelines) is installed for all
-three harnesses so every contributor gets the same behavior regardless of tool:
+The following skills are installed for all four harnesses (Codex/agents,
+Claude Code, opencode, Command Code) so every contributor gets the same
+behavior regardless of tool:
 
-- `.agents/skills/karpathy-guidelines/SKILL.md` — CANONICAL (Codex native; the
-  agents.md/agentskills.io ecosystem standard)
-- `.claude/skills/karpathy-guidelines/SKILL.md` — Claude Code
-- `.opencode/skills/karpathy-guidelines/SKILL.md` — opencode
+- `.agents/skills/karpathy-guidelines/SKILL.md` — CANONICAL (behavioral coding
+  guidelines; the agents.md/agentskills.io ecosystem standard)
+- `.agents/skills/impeccable/SKILL.md` — CANONICAL (UI anti-pattern detection
+  + design-quality rules, 59 deterministic detectors; each harness dir has
+  its provider-specific copy)
+- `.agents/skills/design-taste-frontend/SKILL.md` — CANONICAL (anti-slop
+  frontend design: brief inference, design-system map, dials, pre-flight
+  check)
+- `.agents/skills/motion-framer/SKILL.md` — CANONICAL (Motion/Framer Motion
+  animation patterns)
+
+Copies live in each harness dir (identical content; the impeccable SKILL.md
+is provider-tuned per harness — keep each provider's copy intact):
+- `.agents/skills/*/SKILL.md` — Codex native (agents.md standard)
+- `.claude/skills/*/SKILL.md` — Claude Code
+- `.opencode/skills/*/SKILL.md` — opencode
+- `.commandcode/skills/*/SKILL.md` — Command Code
 
 MANDATORY CODING BEHAVIOR: before writing, changing, fixing, or refactoring ANY code,
 load and apply the `karpathy-guidelines` skill. This is a hard rule, not a suggestion —
 if the skill content is not in your context, pause and load it first.
 
-SYNC LAW: if you edit the canonical copy, apply the identical change to the other two
-in the same commit. The three copies must never diverge.
+MANDATORY UI BEHAVIOR: when building or changing ANY UI component — the dashboard
+(React/TS inbox, live decision stream, ledger explorer), landing page, or any other
+frontend — load and apply `design-taste-frontend` (layout/typography/color/anti-slop),
+`motion-framer` (animation), and `impeccable` (anti-pattern detection + accessibility)
+BEFORE writing the component. Run `impeccable detect` on the shipped UI. This is a
+hard rule, not a suggestion.
+
+SYNC LAW: if you edit a canonical copy (`.agents/skills/`), apply the identical change
+to the other three in the same commit. The four copies must never diverge. (Exception:
+impeccable's SKILL.md is provider-tuned — only the canonical `.agents/` copy is the
+sync source for karpathy-guidelines, design-taste-frontend, and motion-framer.)
 
 ## Conventions
 
