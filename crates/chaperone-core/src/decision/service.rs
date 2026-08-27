@@ -1,34 +1,22 @@
 //! DecisionService — the Flow 2 hot path, orchestrated fail-closed (build-plan
-//! Phase 7): agent lookup → policy lookup → derived context → engine eval →
-//! SYNCHRONOUS ledger append → respond. Append-then-respond (Law 3); idempotent
-//! replay via request_id; mode is server-side config, never client-supplied
-//! (flows/02 invariant 8, flows/08 rule 1).
+//! Phase 7): agent lookup → policy lookup (via the Phase 6.5 policy cache) →
+//! derived context → engine eval → SYNCHRONOUS ledger append → respond.
+//! Append-then-respond (Law 3); idempotent replay via request_id; mode is
+//! server-side config, never client-supplied (flows/02 invariant 8, flows/08
+//! rule 1).
 
 use serde_json::{Value as JsonValue, json};
 use std::time::Instant;
 
-use crate::engine::cedar_compile::TranspileError;
-use crate::engine::cedar_engine::CedarEngine;
+use crate::cache::policy_cache::{CompiledPolicies, PolicyProvider};
 use crate::engine::derive::{DerivedCounterValue, DerivedDeclaration, compute_derived};
 use crate::engine::{EngineDecision, EvalRequest};
 use crate::ledger::chain::append;
 use crate::ledger::{ChainError, ChainStore};
 use crate::models::decision::{Decision, DecisionRequest, DecisionResponse, TraceEntry};
-use crate::models::ir::Policy;
 use crate::models::ledger::{EntryType, LedgerEntry};
 use crate::models::reason_code::ReasonCode;
-use crate::storage::store::{AgentIdentityRow, PolicyVersionRow, Store, StoreError};
-
-/// The policy source: the active policy set + the policies' byte-identity.
-/// A policy's identity is its canonical IR hash — the response carries it as
-/// policy_hash (docs/api-contracts.md) so every decision pins exact bytes.
-#[derive(Debug, Clone, PartialEq)]
-pub struct ActivePolicy {
-    /// The active policy document (already validated; policy_hash pinned).
-    pub policy: Policy,
-    /// sha256(canonical_json(ir_json)) — pinned at activation (Flow 1).
-    pub policy_hash: String,
-}
+use crate::storage::store::{AgentIdentityRow, Store, StoreError};
 
 /// Fail-closed errors — never decisions. A 5xx triggers a BLOCK at the
 /// interceptor; a verdict is never returned from an error path (Law 1).
@@ -81,120 +69,15 @@ pub struct DecisionEnvelope {
     pub error: Option<DecisionError>,
 }
 
-/// The compiled, cached policy set + its version identity (Phase 6.5 cache
-/// tier 1: always populated; correctness never depends on a cache).
-#[derive(Debug, Clone)]
-pub struct CompiledPolicies {
-    pub policies: Vec<ActivePolicy>,
-    pub compiled: std::sync::Arc<CedarEngine>,
-}
-
-impl CompiledPolicies {
-    /// Compile the active set. Deterministic and infallible by construction:
-    /// policies are validated + linted before activation (Flow 1 walls), so a
-    /// compile failure is a bug in the load path, not a request-time choice.
-    pub fn compile(active: Vec<ActivePolicy>) -> Result<Self, TranspileError> {
-        let raw: Vec<Policy> = active.iter().map(|a| a.policy.clone()).collect();
-        let compiled = CedarEngine::compile(&raw)?;
-        Ok(CompiledPolicies {
-            policies: active,
-            compiled: std::sync::Arc::new(compiled),
-        })
-    }
-
-    pub fn engine(&self) -> &CedarEngine {
-        &self.compiled
-    }
-
-    /// The identity of the governing policy — the single active policy in v1
-    /// (the first in load order). None when no policy governs (the service then
-    /// pins "__none__"/0/zeros per docs/data-model.md).
-    pub fn governing(&self) -> Option<(&str, u32, &str)> {
-        self.policies.first().map(|a| {
-            (
-                a.policy.policy_id.as_str(),
-                a.policy.version,
-                a.policy_hash.as_str(),
-            )
-        })
-    }
-}
-
-/// The policy + derived-attribute loader (Phase 6.5 cache tier 3: the DB is
-/// the source of truth; a cache outage can never change a verdict).
-pub trait PolicyProvider: Send + Sync {
-    fn load(&self) -> Result<CompiledPolicies, DecisionError>;
-}
-
-/// SQLite-backed loader: reads the active policy set from the Store. A DB
-/// failure is FAIL_CLOSED_POLICY_UNAVAILABLE (flows/02 tier 3).
-pub struct StorePolicyProvider {
-    store: Store,
-}
-
-impl StorePolicyProvider {
-    pub fn new(store: Store) -> Self {
-        StorePolicyProvider { store }
-    }
-
-    /// Async load — call from the tokio runtime (the server path).
-    pub async fn load_async(&self) -> Result<CompiledPolicies, DecisionError> {
-        let rows: Vec<PolicyVersionRow> = self
-            .store
-            .list_active_policies()
-            .await
-            .map_err(|e| DecisionError::PolicyUnavailable(e.to_string()))?;
-        let mut active: Vec<ActivePolicy> = Vec::new();
-        for row in rows {
-            let policy: Policy = serde_json::from_str(&row.ir_json).map_err(|e| {
-                DecisionError::PolicyUnavailable(format!("invalid IR for {}: {e}", row.policy_id))
-            })?;
-            if crate::ir::validate::validate(&policy).is_err() {
-                return Err(DecisionError::PolicyUnavailable(format!(
-                    "active policy {} failed validation",
-                    row.policy_id
-                )));
-            }
-            // Cedar drift check (Flow 1 wall 2/3): the pinned cedar_text is
-            // regenerated + compared at load, so the compiled set always
-            // matches the pinned hash.
-            let regenerated = crate::engine::cedar_compile::to_cedar(&policy)
-                .map_err(|e| DecisionError::PolicyCompile(e.to_string()))?
-                .into_iter()
-                .map(|c| c.text)
-                .collect::<Vec<_>>()
-                .join("\n");
-            if regenerated != row.cedar_text.trim() {
-                return Err(DecisionError::PolicyCompile(format!(
-                    "policy {} v{} cedar_text drift",
-                    row.policy_id, row.version
-                )));
-            }
-            active.push(ActivePolicy {
-                policy,
-                policy_hash: row.policy_hash,
-            });
-        }
-        CompiledPolicies::compile(active).map_err(|e| DecisionError::PolicyCompile(e.to_string()))
-    }
-}
-
-impl PolicyProvider for StorePolicyProvider {
-    fn load(&self) -> Result<CompiledPolicies, DecisionError> {
-        // A current-thread block_on is acceptable at load boundaries (policy
-        // loads are cached); the async server path calls load_async directly.
-        tokio::runtime::Handle::current().block_on(self.load_async())
-    }
-}
-
 /// Reads the materialized derived_counters for the active declarations.
 pub trait DerivedCounterSource: Send + Sync {
     fn read(&self, req: &DecisionRequest) -> Result<Vec<DerivedCounterValue>, DecisionError>;
 }
 
 /// The decision service — the single orchestration point of the hot path.
-/// Generic over the ledger store, the policy provider, and the derived-counter
-/// source so tests use in-memory seams and production uses sqlx Store.
+/// Generic over the ledger store, the policy cache (provider), and the
+/// derived-counter source so tests use in-memory seams and production uses
+/// sqlx Store.
 pub struct DecisionService<S, P, D> {
     store: S,
     policies: P,
@@ -235,7 +118,7 @@ where
         let start = Instant::now();
 
         // --- fail-closed guard: a policy load failure is NEVER a verdict ---
-        let compiled = match self.policies.load() {
+        let compiled = match self.policies.load().await {
             Ok(c) => c,
             Err(e) => {
                 return self.synthesized_block(ReasonCode::FailClosedPolicyUnavailable, start, e);
@@ -679,7 +562,9 @@ impl AgentSource for Store {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::cache::policy_cache::ActivePolicy;
     use crate::models::decision::{RequestContext, Surface};
+    use crate::models::ir::Policy;
     use crate::models::reason_code::ReasonCode;
     use serde_json::json;
     use std::sync::{Arc, Mutex};
@@ -777,7 +662,7 @@ mod tests {
     }
 
     impl PolicyProvider for MemPolicyProvider {
-        fn load(&self) -> Result<CompiledPolicies, DecisionError> {
+        async fn load(&self) -> Result<CompiledPolicies, DecisionError> {
             self.compiled.lock().unwrap().clone()
         }
     }
