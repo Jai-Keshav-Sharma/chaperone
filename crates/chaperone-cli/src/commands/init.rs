@@ -49,7 +49,13 @@ pub async fn run_init(args: InitArgs) -> i32 {
 
     // 3. Default API key (idempotent: skip if already present).
     let dev_key_hash = chaperone_core::canonical::sha256_hex("dev-token");
-    if store.get_api_key(&dev_key_hash).await.is_err() {
+    let key_exists = store
+        .get_api_key(&dev_key_hash)
+        .await
+        .ok()
+        .flatten()
+        .is_some();
+    if !key_exists {
         store
             .insert_api_key(&chaperone_core::storage::store::ApiKeyRow {
                 key_hash: dev_key_hash,
