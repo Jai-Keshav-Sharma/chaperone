@@ -32,7 +32,7 @@ pub enum LedgerCommand {
 }
 
 pub async fn run_ledger(args: LedgerArgs) -> i32 {
-    let store = match super::open_store() {
+    let store = match super::open_store().await {
         Ok(s) => s,
         Err(e) => {
             eprintln!("chaperone: cannot open store: {e}");

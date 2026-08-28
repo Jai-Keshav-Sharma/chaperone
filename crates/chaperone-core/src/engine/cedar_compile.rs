@@ -386,11 +386,25 @@ fn escape_str(s: &str) -> String {
     s.replace('\\', "\\\\").replace('"', "\\\"")
 }
 
-/// Escape a like-pattern interior for a Cedar string literal. The pattern's
-/// own `\x` escapes must survive: `\` → `\\`, `"` → `\"` — Cedar's literal
-/// parser then restores the pattern's escapes for the like matcher.
+/// Resolve a like-pattern interior for Cedar. Cedar `like` has NO escape
+/// syntax: `*` is the only metachar, every other char is literal. The IR's
+/// `\x` escapes (used to express literals like `.`) must therefore be
+/// RESOLVED here — `\.` → `.` — so reference and Cedar agree (the reference's
+/// like_match handles `\x` → literal x). `"` is escaped for the Cedar string
+/// literal only.
 fn escape_like_literal(s: &str) -> String {
-    s.replace('\\', "\\\\").replace('"', "\\\"")
+    let mut out = String::with_capacity(s.len());
+    let mut chars = s.chars();
+    while let Some(c) = chars.next() {
+        if c == '\\' {
+            if let Some(next) = chars.next() {
+                out.push(next); // `\x` → literal x (Cedar: no escape syntax)
+            }
+        } else {
+            out.push(c);
+        }
+    }
+    out.replace('"', "\\\"")
 }
 
 #[cfg(test)]

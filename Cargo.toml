@@ -4,6 +4,7 @@ members = [
     "crates/chaperone-core",
     "crates/chaperone-server",
     "crates/chaperone-cli",
+    "crates/chaperone-bench",
 ]
 
 [workspace.package]

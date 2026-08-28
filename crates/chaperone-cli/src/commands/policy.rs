@@ -145,7 +145,7 @@ async fn compile(sop_path: &str, provider: &str, out: Option<&str>) -> i32 {
 /// Write the compiled policy as a DRAFT version (never active — activation is
 /// a separate explicit step).
 async fn write_draft(result: &chaperone_core::compiler::CompileResult) -> Result<(), String> {
-    let store = super::open_store()?;
+    let store = super::open_store().await?;
     let ir_json = serde_json::to_string(&result.policy).map_err(|e| e.to_string())?;
     let policy_hash =
         chaperone_core::canonical::sha256_hex(&chaperone_core::canonical::canonical_dumps(
@@ -233,7 +233,7 @@ fn lint(path: &str) -> i32 {
 }
 
 async fn activate(id: &str, version: i64) -> i32 {
-    let store = match super::open_store() {
+    let store = match super::open_store().await {
         Ok(s) => s,
         Err(e) => {
             eprintln!("chaperone: cannot open store: {e}");

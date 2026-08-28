@@ -31,7 +31,7 @@ pub async fn run_doctor(args: DoctorArgs) -> i32 {
     }
 
     // 2. Ledger health (chain verify).
-    match super::open_store() {
+    match super::open_store().await {
         Ok(store) => match store.all_ledger_entries().await {
             Ok(entries) => match chaperone_core::ledger::verify::verify_chain(&entries) {
                 chaperone_core::ledger::verify::VerificationResult::ChainOk { .. } => {
@@ -54,7 +54,7 @@ pub async fn run_doctor(args: DoctorArgs) -> i32 {
     }
 
     // 3. Policy currency (an active policy exists).
-    if ok && let Ok(store) = super::open_store() {
+    if ok && let Ok(store) = super::open_store().await {
         match store.list_active_policies().await {
             Ok(rows) if !rows.is_empty() => {
                 println!("[ok]   policy: {} active", rows.len());

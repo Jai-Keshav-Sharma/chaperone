@@ -32,11 +32,12 @@ pub async fn dispatch(command: Command) -> i32 {
     }
 }
 
-/// Open the configured SQLite store (default: ./chaperone.db).
-pub fn open_store() -> Result<chaperone_core::storage::store::Store, String> {
+/// Open the configured SQLite store (default: ./chaperone.db). Async: every
+/// caller runs inside the CLI's tokio runtime (a nested Runtime panics).
+pub async fn open_store() -> Result<chaperone_core::storage::store::Store, String> {
     let path = std::env::var("CHAPERONE_DATABASE_URL")
         .unwrap_or_else(|_| "sqlite://./chaperone.db".to_string());
-    let rt = tokio::runtime::Runtime::new().map_err(|e| e.to_string())?;
-    rt.block_on(chaperone_core::storage::store::Store::open_sqlite(&path))
+    chaperone_core::storage::store::Store::open_sqlite(&path)
+        .await
         .map_err(|e| e.to_string())
 }

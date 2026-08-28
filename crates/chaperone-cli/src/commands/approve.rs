@@ -59,7 +59,7 @@ pub async fn run_deny(args: DenyArgs) -> i32 {
 pub async fn run_escalations(args: EscalationsArgs) -> i32 {
     match args.command {
         EscalationsCommand::List => {
-            let store = match super::open_store() {
+            let store = match super::open_store().await {
                 Ok(s) => s,
                 Err(e) => {
                     eprintln!("chaperone: cannot open store: {e}");
@@ -94,7 +94,7 @@ pub async fn run_escalations(args: EscalationsArgs) -> i32 {
 }
 
 async fn resolve(id: &str, status: &str, resolver: Option<&str>, note: Option<&str>) -> i32 {
-    let store = match super::open_store() {
+    let store = match super::open_store().await {
         Ok(s) => s,
         Err(e) => {
             eprintln!("chaperone: cannot open store: {e}");

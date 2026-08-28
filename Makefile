@@ -15,13 +15,13 @@ test-all:
 	cargo test --workspace --all-features
 
 bench:
-	cargo bench --workspace
+	cargo run -p chaperone-cli -- bench
 
 serve:
 	cargo run -p chaperone-cli -- serve
 
 paper-figures:
-	cargo run --release -p chaperone-cli -- bench paper-figures
+	cargo run --release -p chaperone-cli -- bench
 
 changelog:
 	git cliff --latest

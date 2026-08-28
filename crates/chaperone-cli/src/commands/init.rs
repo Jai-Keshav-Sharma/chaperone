@@ -21,7 +21,7 @@ pub struct InitArgs {
 pub struct UnhookArgs {}
 
 pub async fn run_init(args: InitArgs) -> i32 {
-    let store = match super::open_store() {
+    let store = match super::open_store().await {
         Ok(s) => s,
         Err(e) => {
             eprintln!("chaperone: cannot open store: {e}");

@@ -1,0 +1,174 @@
+{
+  "block_recall": {
+    "value": 1.0,
+    "ci_low": 0.9921091377565106,
+    "ci_high": 1.0,
+    "n": 483
+  },
+  "false_block_rate": {
+    "value": 0.0,
+    "ci_low": 0.0,
+    "ci_high": 0.007779012541673281,
+    "n": 490
+  },
+  "escalation_accuracy": {
+    "value": 1.0,
+    "ci_low": 0.9123754607496077,
+    "ci_high": 1.0,
+    "n": 40
+  },
+  "latency": {
+    "p50_ms": 4.502199999999999,
+    "p95_ms": 7.747999999999999,
+    "p99_ms": 8.953199999999999
+  },
+  "per_class": [
+    {
+      "attack_class": "Ambiguous",
+      "n": 40,
+      "correct": 40,
+      "accuracy": {
+        "value": 1.0,
+        "ci_low": 0.9123754607496077,
+        "ci_high": 1.0,
+        "n": 40
+      }
+    },
+    {
+      "attack_class": "Benign",
+      "n": 490,
+      "correct": 490,
+      "accuracy": {
+        "value": 1.0,
+        "ci_low": 0.9922209874583265,
+        "ci_high": 0.9999999999999998,
+        "n": 490
+      }
+    },
+    {
+      "attack_class": "Chain",
+      "n": 45,
+      "correct": 45,
+      "accuracy": {
+        "value": 1.0,
+        "ci_low": 0.9213457380593594,
+        "ci_high": 1.0,
+        "n": 45
+      }
+    },
+    {
+      "attack_class": "ConfusedDeputyDelegation",
+      "n": 6,
+      "correct": 6,
+      "accuracy": {
+        "value": 1.0,
+        "ci_low": 0.6096569663469354,
+        "ci_high": 0.9999999999999999,
+        "n": 6
+      }
+    },
+    {
+      "attack_class": "EscalationBaitAndSwitch",
+      "n": 4,
+      "correct": 4,
+      "accuracy": {
+        "value": 1.0,
+        "ci_low": 0.5100999795960008,
+        "ci_high": 1.0,
+        "n": 4
+      }
+    },
+    {
+      "attack_class": "InjectionOverfunding",
+      "n": 46,
+      "correct": 41,
+      "accuracy": {
+        "value": 0.8913043478260869,
+        "ci_low": 0.7696189698736853,
+        "ci_high": 0.9526692391725731,
+        "n": 46
+      }
+    },
+    {
+      "attack_class": "ObfuscatedDestructive",
+      "n": 270,
+      "correct": 270,
+      "accuracy": {
+        "value": 1.0,
+        "ci_low": 0.9859714521095407,
+        "ci_high": 1.0,
+        "n": 270
+      }
+    },
+    {
+      "attack_class": "ParamsOmission",
+      "n": 18,
+      "correct": 18,
+      "accuracy": {
+        "value": 1.0,
+        "ci_low": 0.8241154494176252,
+        "ci_high": 1.0,
+        "n": 18
+      }
+    },
+    {
+      "attack_class": "PrivilegeLeak",
+      "n": 20,
+      "correct": 20,
+      "accuracy": {
+        "value": 1.0,
+        "ci_low": 0.8388698745050667,
+        "ci_high": 1.0,
+        "n": 20
+      }
+    },
+    {
+      "attack_class": "StalePolicy",
+      "n": 15,
+      "correct": 15,
+      "accuracy": {
+        "value": 1.0,
+        "ci_low": 0.7961107336956521,
+        "ci_high": 1.0,
+        "n": 15
+      }
+    },
+    {
+      "attack_class": "ToolAliasDowngrade",
+      "n": 12,
+      "correct": 12,
+      "accuracy": {
+        "value": 1.0,
+        "ci_low": 0.7574992425007574,
+        "ci_high": 1.0,
+        "n": 12
+      }
+    },
+    {
+      "attack_class": "ToolNameConfusion",
+      "n": 24,
+      "correct": 24,
+      "accuracy": {
+        "value": 1.0,
+        "ci_low": 0.8620194241710247,
+        "ci_high": 1.0,
+        "n": 24
+      }
+    },
+    {
+      "attack_class": "VagueReframe",
+      "n": 48,
+      "correct": 48,
+      "accuracy": {
+        "value": 1.0,
+        "ci_low": 0.9258973488472576,
+        "ci_high": 0.9999999999999999,
+        "n": 48
+      }
+    }
+  ],
+  "chain_verified": true,
+  "seed": 1337,
+  "git_sha": "81c0f1e",
+  "scenario_count": 1038
+}
