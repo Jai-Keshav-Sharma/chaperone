@@ -1,0 +1,80 @@
+@import "tailwindcss";
+
+/* Chaperone dashboard theme (Phase 12): dark terminal aesthetic.
+   One accent (emerald = ALLOW/gate signal), zinc neutrals, mono for data.
+   Theme lock: dark by default, honors prefers-color-scheme. */
+
+@theme {
+  --font-sans: "Geist", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "Geist Mono", "Cascadia Code", ui-monospace, Consolas, monospace;
+
+  --color-ink-950: #0a0c10;
+  --color-ink-900: #10131a;
+  --color-ink-850: #151923;
+  --color-ink-800: #1b202c;
+  --color-ink-700: #262c3b;
+  --color-ink-600: #3a4254;
+  --color-ink-500: #4c566b;
+
+  --color-mist-500: #8b93a7;
+  --color-mist-400: #a6adbf;
+  --color-mist-300: #c3c9d6;
+
+  --color-gate-400: #34d399; /* emerald ALLOW */
+  --color-gate-500: #10b981;
+  --color-gate-600: #059669;
+  --color-gate-warn: #fbbf24; /* amber ESCALATE */
+  --color-gate-deny: #f87171; /* red BLOCK */
+}
+
+html {
+  color-scheme: dark;
+}
+
+body {
+  @apply bg-ink-950 text-mist-300 antialiased;
+  font-family: var(--font-sans);
+}
+
+/* The single radius system: 8px surfaces, 6px interactive, 4px chips. */
+@layer components {
+  .surface {
+    @apply rounded-lg border border-ink-700 bg-ink-900;
+  }
+  .surface-hover {
+    @apply transition-colors duration-150 hover:border-ink-600 hover:bg-ink-850;
+  }
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium transition
+      focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gate-500
+      active:translate-y-px disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .btn-primary {
+    @apply bg-gate-500 text-ink-950 hover:bg-gate-400;
+  }
+  .btn-ghost {
+    @apply border border-ink-600 text-mist-300 hover:border-ink-500 hover:text-mist-300;
+  }
+  .btn-deny {
+    @apply border border-gate-deny/40 text-gate-deny hover:border-gate-deny/70;
+  }
+  .chip {
+    @apply inline-flex items-center gap-1.5 rounded px-2 py-0.5 font-mono text-xs;
+  }
+  .label {
+    @apply font-mono text-xs uppercase tracking-[0.14em] text-mist-500;
+  }
+  .mono {
+    @apply font-mono;
+  }
+}
+
+/* Respect reduced motion globally (Motion also gates per-component). */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
