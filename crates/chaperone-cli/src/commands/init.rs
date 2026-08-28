@@ -47,7 +47,24 @@ pub async fn run_init(args: InitArgs) -> i32 {
         return 1;
     }
 
-    // 3. Hook wiring: merge into .claude/settings.json + .cursor/hooks.json
+    // 3. Default API key (idempotent: skip if already present).
+    let dev_key_hash = chaperone_core::canonical::sha256_hex("dev-token");
+    if store.get_api_key(&dev_key_hash).await.is_err() {
+        store
+            .insert_api_key(&chaperone_core::storage::store::ApiKeyRow {
+                key_hash: dev_key_hash,
+                agent_id: None,
+                is_admin: true,
+                created_at: chrono::Utc::now().to_rfc3339(),
+                last_used_at: None,
+                expires_at: None,
+                revoked_at: None,
+            })
+            .await
+            .ok(); // ignore if already exists (race-safe)
+    }
+
+    // 4. Hook wiring: merge into .claude/settings.json + .cursor/hooks.json
     //    (merge, never clobber — flows/05).
     let home = std::env::var("USERPROFILE")
         .or_else(|_| std::env::var("HOME"))
@@ -95,6 +112,14 @@ pub async fn run_unhook(_args: UnhookArgs) -> i32 {
 /// Load + activate the starter-safety pack (benign allow rules cover the full
 /// normalized namespace so nothing falls to NO_POLICY after init).
 async fn load_starter_pack(store: &chaperone_core::storage::store::Store) -> Result<(), String> {
+    if store
+        .get_active_policy("starter-safety")
+        .await
+        .map_err(|e| e.to_string())?
+        .is_some()
+    {
+        return Ok(());
+    }
     store
         .upsert_policy("starter-safety", "Starter Safety Pack", None)
         .await
