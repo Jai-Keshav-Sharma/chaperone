@@ -110,14 +110,14 @@ async fn load_starter_pack(store: &chaperone_core::storage::store::Store) -> Res
                 "description": "block destructive shell commands",
                 "effect": "block",
                 "target": {"tools": ["shell.exec"]},
-                "condition": {"op": "matches", "left": {"param": "command"}, "pattern": "*rm -rf*"}
+                "condition": {"op": "matches", "left": {"param": "command"}, "pattern": "^*rm -rf*$"}
             },
             {
                 "rule_id": "s-block-secrets",
                 "description": "block writes to secret paths",
                 "effect": "block",
                 "target": {"tools": ["fs.write"]},
-                "condition": {"op": "matches", "left": {"param": "path"}, "pattern": "*.env*"}
+                "condition": {"op": "matches", "left": {"param": "path"}, "pattern": "^*env*$"}
             },
             {
                 "rule_id": "s-allow-benign-read",
@@ -130,7 +130,7 @@ async fn load_starter_pack(store: &chaperone_core::storage::store::Store) -> Res
                 "description": "benign local shell commands",
                 "effect": "allow",
                 "target": {"tools": ["shell.exec"]},
-                "condition": {"op": "matches", "left": {"param": "command"}, "pattern": "*git status*"}
+                "condition": {"op": "matches", "left": {"param": "command"}, "pattern": "^*git status*$"}
             },
             {
                 "rule_id": "s-allow-safe-web",
