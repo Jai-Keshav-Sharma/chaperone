@@ -73,6 +73,26 @@ pub async fn append_genesis(store: &impl ChainStore) -> Result<LedgerEntry, Chai
     Ok(entry)
 }
 
+/// Link an entry onto the chain head: assign seq (head.seq + 1), previous_hash
+/// (head.entry_hash), and compute entry_hash. Pure (no I/O) so both the
+/// two-step `append` and the atomic store transaction (ledger insert + derived
+/// counter upsert) share the exact same linkage math (Law 4 single hashing
+/// path, docs/flows/04). Returns GenesisMissing when there is no head.
+pub fn link_entry(
+    head: Option<&LedgerEntry>,
+    mut entry: LedgerEntry,
+) -> Result<LedgerEntry, ChainError> {
+    match head {
+        Some(h) => {
+            entry.entry_seq = h.entry_seq + 1;
+            entry.previous_hash = h.entry_hash.clone();
+        }
+        None => return Err(ChainError::GenesisMissing),
+    }
+    entry.entry_hash = compute_entry_hash(&entry);
+    Ok(entry)
+}
+
 /// Append (docs/flows/04 Layer 1): read head → compute seq, prev,
 /// hash → insert. The store provides the atomic single-writer guarantee.
 /// Idempotency: a duplicate (request_id, entry_type) surfaces as
@@ -80,17 +100,10 @@ pub async fn append_genesis(store: &impl ChainStore) -> Result<LedgerEntry, Chai
 /// decision service answers the replay from the original entry instead.
 pub async fn append(
     store: &impl ChainStore,
-    mut entry: LedgerEntry,
+    entry: LedgerEntry,
 ) -> Result<(u64, String), ChainError> {
-    let last = store.last_entry().await?;
-    match &last {
-        Some(head) => {
-            entry.entry_seq = head.entry_seq + 1;
-            entry.previous_hash = head.entry_hash.clone();
-        }
-        None => return Err(ChainError::GenesisMissing),
-    }
-    entry.entry_hash = compute_entry_hash(&entry);
+    let head = store.last_entry().await?;
+    let entry = link_entry(head.as_ref(), entry)?;
     store.insert_entry(&entry).await?;
     Ok((entry.entry_seq, entry.entry_hash.clone()))
 }

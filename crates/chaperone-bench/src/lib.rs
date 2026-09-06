@@ -6,6 +6,7 @@
 //! externally auditable.
 
 pub mod attacks;
+pub mod experiments;
 pub mod gold;
 pub mod metrics;
 pub mod runner;

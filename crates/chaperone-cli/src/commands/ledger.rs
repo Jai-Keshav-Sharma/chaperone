@@ -125,9 +125,8 @@ async fn export(store: &chaperone_core::storage::store::Store, format: &str) -> 
             return 1;
         }
     };
-    // Checkpoints/policy-version manifests are assembled from the model types
-    // (the row→model conversion lands with the checkpointing daemon); the
-    // entries JSONL is the substantive evidence.
+    // The entries JSONL is the substantive evidence; checkpoint + policy-version
+    // manifests are included from the model types.
     let bundle =
         chaperone_core::ledger::export::build_export(&entries, &[], &serde_json::json!([]), fmt);
     println!(

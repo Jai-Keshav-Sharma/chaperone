@@ -81,11 +81,53 @@ pub async fn run_doctor(args: DoctorArgs) -> i32 {
         }
     }
 
-    // 5. Live canary (unless skipped): the runtime proof of enforcement.
+    // 5. Live canary (unless skipped): the runtime proof of enforcement. We
+    //    invoke the hook directly with a simulated destructive event and confirm
+    //    it denies. If the gate is unreachable the hook fails closed, so a deny
+    //    is the expected signal for a healthy gate.
     if !args.no_canary && ok {
-        println!("[info] live canary: not executed (needs an interactive host seam)");
+        let probe = serde_json::json!({
+            "tool_name": "Bash",
+            "tool_input": {"command": "chaperone-canary-rm -rf /"},
+            "session_id": "doctor-canary"
+        });
+        let mut child = match std::process::Command::new("chaperone")
+            .arg("hook")
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::null())
+            .spawn()
+        {
+            Ok(c) => c,
+            Err(e) => {
+                eprintln!("[FAIL] live canary: cannot spawn chaperone hook: {e}");
+                ok = false;
+                return finish(ok);
+            }
+        };
+        use std::io::Write;
+        if let Some(mut stdin) = child.stdin.take() {
+            let _ = stdin.write_all(probe.to_string().as_bytes());
+        }
+        let status = child.wait();
+        match status {
+            Ok(s) if s.code() == Some(2) => {
+                println!("[ok]   live canary: destructive action DENIED (enforcement is live)");
+            }
+            _ => {
+                eprintln!(
+                    "[FAIL] live canary: expected a deny (exit 2), got {:?}",
+                    status
+                );
+                ok = false;
+            }
+        }
     }
 
+    finish(ok)
+}
+
+fn finish(ok: bool) -> i32 {
     if ok {
         println!("doctor: all checks passed");
         0

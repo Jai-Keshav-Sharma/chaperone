@@ -6,9 +6,10 @@
 //! Postgres). Ledger tables remain strictly append-only (Law 5).
 
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
-use sqlx::{Pool, Sqlite};
+use sqlx::{Executor, Pool, Sqlite};
 use std::str::FromStr;
 
+use crate::engine::derive::DerivedCounterUpdate;
 use crate::ledger::{ChainError, ChainStore};
 use crate::models::ledger::{EntryType, LedgerEntry};
 
@@ -21,8 +22,8 @@ pub struct Store {
 #[derive(Clone)]
 enum Inner {
     Sqlite(Pool<Sqlite>),
-    // Postgres variant reserved for Phase 6 future; compile-time guard below.
-    // _Phantom(std::marker::PhantomData<sqlx::Postgres>),
+    // Postgres is a documented fleet-mode engine; the dispatcher variant is
+    // added here when it ships (same schema, swap via config).
 }
 
 impl Store {
@@ -161,51 +162,132 @@ impl ChainStore for Store {
     }
 
     async fn insert_entry(&self, entry: &LedgerEntry) -> Result<(), ChainError> {
-        let row = LedgerRow::from(entry);
-        sqlx::query(
-            "INSERT INTO ledger_entries (
-                entry_seq, entry_ts, previous_hash, entry_hash, entry_type,
+        insert_entry_in(self.pool(), entry).await
+    }
+
+    /// Append a linked ledger entry AND apply derived-counter updates inside
+    /// ONE transaction (docs/data-model.md PERF-1). The whole write succeeds or
+    /// rolls back — the ledger entry and its counter increments are inseparable.
+    /// The single-connection pool (max_connections(1)) serializes writers, so
+    /// the begin → read-head → link → insert → upsert sequence cannot interleave.
+    async fn append_entry(
+        &self,
+        entry: LedgerEntry,
+        updates: &[DerivedCounterUpdate],
+    ) -> Result<(u64, String), ChainError> {
+        let mut tx = self
+            .pool()
+            .begin()
+            .await
+            .map_err(|e| ChainError::Storage(e.to_string()))?;
+        let head = last_entry_in(&mut *tx).await?;
+        let entry = crate::ledger::chain::link_entry(head.as_ref(), entry)?;
+        insert_entry_in(&mut *tx, &entry).await?;
+        for up in updates {
+            upsert_derived_counter_in(&mut *tx, up, entry.entry_seq as i64).await?;
+        }
+        tx.commit()
+            .await
+            .map_err(|e| ChainError::Storage(e.to_string()))?;
+        Ok((entry.entry_seq, entry.entry_hash))
+    }
+}
+
+/// Read the chain head from any SQLite executor (pool or transaction).
+async fn last_entry_in<'e, E>(conn: E) -> Result<Option<LedgerEntry>, ChainError>
+where
+    E: Executor<'e, Database = Sqlite>,
+{
+    let row: Option<LedgerRow> = sqlx::query_as(
+        "SELECT entry_seq, entry_ts, previous_hash, entry_hash, entry_type,
                 request_id, agent_id, tool, params_hash, tenant_id, decision,
                 policy_id, policy_version, policy_hash, determining_rule_ids,
                 reason_code, decision_trace, evaluation_latency_ms, escalation_id
-            ) VALUES (
-                ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11,
-                ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19
-            )",
-        )
-        .bind(row.entry_seq)
-        .bind(&row.entry_ts)
-        .bind(&row.previous_hash)
-        .bind(&row.entry_hash)
-        .bind(&row.entry_type)
-        .bind(&row.request_id)
-        .bind(&row.agent_id)
-        .bind(&row.tool)
-        .bind(&row.params_hash)
-        .bind(&row.tenant_id)
-        .bind(&row.decision)
-        .bind(&row.policy_id)
-        .bind(row.policy_version)
-        .bind(&row.policy_hash)
-        .bind(&row.determining_rule_ids)
-        .bind(&row.reason_code)
-        .bind(&row.decision_trace)
-        .bind(row.evaluation_latency_ms)
-        .bind(&row.escalation_id)
-        .execute(self.pool())
-        .await
-        .map_err(|e| {
-            if e.to_string().contains("UNIQUE constraint") {
-                ChainError::DuplicateEntry {
-                    request_id: entry.request_id.clone(),
-                    entry_type: entry.entry_type,
-                }
-            } else {
-                ChainError::Storage(e.to_string())
+         FROM ledger_entries ORDER BY entry_seq DESC LIMIT 1",
+    )
+    .fetch_optional(conn)
+    .await
+    .map_err(|e| ChainError::Storage(e.to_string()))?;
+    Ok(row.map(LedgerEntry::from))
+}
+
+/// Insert one ledger entry through any SQLite executor.
+async fn insert_entry_in<'e, E>(conn: E, entry: &LedgerEntry) -> Result<(), ChainError>
+where
+    E: Executor<'e, Database = Sqlite>,
+{
+    let row = LedgerRow::from(entry);
+    sqlx::query(
+        "INSERT INTO ledger_entries (
+            entry_seq, entry_ts, previous_hash, entry_hash, entry_type,
+            request_id, agent_id, tool, params_hash, tenant_id, decision,
+            policy_id, policy_version, policy_hash, determining_rule_ids,
+            reason_code, decision_trace, evaluation_latency_ms, escalation_id
+        ) VALUES (
+            ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11,
+            ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19
+        )",
+    )
+    .bind(row.entry_seq)
+    .bind(&row.entry_ts)
+    .bind(&row.previous_hash)
+    .bind(&row.entry_hash)
+    .bind(&row.entry_type)
+    .bind(&row.request_id)
+    .bind(&row.agent_id)
+    .bind(&row.tool)
+    .bind(&row.params_hash)
+    .bind(&row.tenant_id)
+    .bind(&row.decision)
+    .bind(&row.policy_id)
+    .bind(row.policy_version)
+    .bind(&row.policy_hash)
+    .bind(&row.determining_rule_ids)
+    .bind(&row.reason_code)
+    .bind(&row.decision_trace)
+    .bind(row.evaluation_latency_ms)
+    .bind(&row.escalation_id)
+    .execute(conn)
+    .await
+    .map_err(|e| {
+        if e.to_string().contains("UNIQUE constraint") {
+            ChainError::DuplicateEntry {
+                request_id: entry.request_id.clone(),
+                entry_type: entry.entry_type,
             }
-        })?;
-        Ok(())
-    }
+        } else {
+            ChainError::Storage(e.to_string())
+        }
+    })?;
+    Ok(())
+}
+
+/// Upsert a derived counter inside the append transaction.
+async fn upsert_derived_counter_in<'e, E>(
+    conn: E,
+    update: &DerivedCounterUpdate,
+    updated_seq: i64,
+) -> Result<(), ChainError>
+where
+    E: Executor<'e, Database = Sqlite>,
+{
+    sqlx::query(
+        "INSERT INTO derived_counters (counter_key, agent_id, tool, window_ts, value, updated_seq)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+         ON CONFLICT (counter_key) DO UPDATE SET
+             value = value + excluded.value,
+             updated_seq = excluded.updated_seq",
+    )
+    .bind(&update.counter_key)
+    .bind(&update.agent_id)
+    .bind(&update.tool)
+    .bind(update.window_ts)
+    .bind(update.increment)
+    .bind(updated_seq)
+    .execute(conn)
+    .await
+    .map_err(|e| ChainError::Storage(e.to_string()))?;
+    Ok(())
 }
 
 // ---------------------------------------------------------------------------
@@ -391,6 +473,15 @@ impl Store {
         .fetch_all(self.pool())
         .await?;
         Ok(rows.into_iter().map(LedgerEntry::from).collect())
+    }
+
+    /// Re-verify the whole chain (hashes + linkage + contiguous seq) at
+    /// startup — refuse to serve a tampered ledger (flows/04 crash recovery).
+    pub async fn verify_chain(
+        &self,
+    ) -> Result<crate::ledger::verify::VerificationResult, StoreError> {
+        let entries = self.all_ledger_entries().await?;
+        Ok(crate::ledger::verify::verify_chain(&entries))
     }
 
     /// Build an inclusion-proof bundle for one entry (the /v1/ledger/prove
@@ -687,6 +778,25 @@ impl Store {
         .await?;
         Ok(result.rows_affected())
     }
+
+    /// Purge `proposed_params` from escalations resolved more than `days` ago
+    /// (data-model.md `proposed_params_retention_days`; default 30). The full
+    /// params are approver-visible only during the retention window; afterwards
+    /// they are NULLed (the row survives, the params are purged — P1-3).
+    pub async fn purge_resolved_params(&self, days: i64) -> Result<u64, StoreError> {
+        let cutoff = (chrono::Utc::now() - chrono::Duration::days(days)).to_rfc3339();
+        let result = sqlx::query(
+            "UPDATE escalations
+             SET proposed_params = NULL
+             WHERE status IN ('approved','denied','expired','consumed')
+               AND proposed_params IS NOT NULL
+               AND resolved_at <= ?1",
+        )
+        .bind(&cutoff)
+        .execute(self.pool())
+        .await?;
+        Ok(result.rows_affected())
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -769,6 +879,59 @@ impl Store {
         .bind(checkpoint_id)
         .fetch_optional(self.pool())
         .await?;
+        Ok(row)
+    }
+
+    /// Emit a Merkle checkpoint over the current chain (flows/04 Layer 2):
+    /// RFC 6962 root over all entry hashes, C2SP text (signed with `signing_key`
+    /// when provided, else unsigned dev mode), persisted to `ledger_checkpoints`.
+    /// Returns the new checkpoint row. Async/cadence is the caller's job.
+    pub async fn emit_checkpoint(
+        &self,
+        signing_key: Option<&ed25519_dalek::SigningKey>,
+    ) -> Result<CheckpointRow, StoreError> {
+        let entries = self.all_ledger_entries().await?;
+        let leaves: Vec<String> = entries.iter().map(|e| e.entry_hash.clone()).collect();
+        let root = crate::ledger::merkle::root_hash(&leaves).unwrap_or_else(|| "0".repeat(64));
+        let size = leaves.len() as u64;
+
+        let cp = match signing_key {
+            Some(key) => crate::ledger::checkpoint::sign_checkpoint(
+                crate::ledger::checkpoint::CHECKPOINT_ORIGIN,
+                size,
+                &root,
+                key,
+            ),
+            None => crate::ledger::checkpoint::unsigned_checkpoint(
+                crate::ledger::checkpoint::CHECKPOINT_ORIGIN,
+                size,
+                &root,
+            ),
+        };
+
+        // Monotonic checkpoint id: MAX(checkpoint_id)+1 (first = 1).
+        let next_id: i64 = sqlx::query_scalar(
+            "SELECT COALESCE(MAX(checkpoint_id), 0) + 1 FROM ledger_checkpoints",
+        )
+        .fetch_one(self.pool())
+        .await?;
+
+        let row = CheckpointRow {
+            checkpoint_id: next_id,
+            tree_size: size as i64,
+            root_hash: root,
+            checkpoint_text: cp.text,
+            key_id: if cp.signature.is_some() {
+                Some(cp.key_id.clone())
+            } else {
+                None
+            },
+            signature: cp.signature,
+            anchored_rekor: None,
+            anchored_tsa: None,
+            created_at: chrono::Utc::now().to_rfc3339(),
+        };
+        self.insert_checkpoint(&row).await?;
         Ok(row)
     }
 }
@@ -1177,5 +1340,58 @@ mod tests {
         let last = store.last_entry().await.unwrap().unwrap();
         assert_eq!(last.entry_seq, 1);
         assert_eq!(last.request_id, "req_a");
+    }
+
+    /// proposed_params retention purge: resolved escalations older than the
+    /// window have their params NULLed; the row survives (P1-3).
+    #[sqlx::test]
+    async fn purge_resolved_params_nulls_old_params(pool: sqlx::SqlitePool) {
+        let store = Store {
+            inner: Inner::Sqlite(pool),
+        };
+        store
+            .upsert_agent_identity(&AgentIdentityRow {
+                agent_id: "agent_a".into(),
+                name: "Agent A".into(),
+                role: "test".into(),
+                spiffe_id: None,
+                tenant_id: None,
+                max_delegation_depth: 1,
+                is_active: true,
+                created_at: "2026-08-25T00:00:00Z".into(),
+            })
+            .await
+            .unwrap();
+
+        let old_resolved_at = (chrono::Utc::now() - chrono::Duration::days(60)).to_rfc3339();
+        let esc = EscalationRow {
+            escalation_id: "esc_old".into(),
+            request_id: "req_1".into(),
+            agent_id: "agent_a".into(),
+            policy_id: "pol_a".into(),
+            policy_version: 1,
+            rule_ids: r#"[]"#.into(),
+            tool: "fs.read".into(),
+            proposed_params: Some(r#"{"path":"/etc/passwd"}"#.into()),
+            params_binding_hash: "a".repeat(64),
+            status: "denied".into(),
+            resolver: Some("admin".into()),
+            resolution_note: None,
+            created_at: "2026-08-25T00:00:00Z".into(),
+            expires_at: "2026-08-25T00:15:00Z".into(),
+            resolved_at: Some(old_resolved_at),
+            decision_entry_seq: None,
+            resolution_entry_seq: None,
+        };
+        store.insert_escalation(&esc).await.unwrap();
+
+        let purged = store.purge_resolved_params(30).await.unwrap();
+        assert_eq!(purged, 1, "one old resolved escalation purged");
+        let fetched = store.get_escalation("esc_old").await.unwrap().unwrap();
+        assert_eq!(
+            fetched.proposed_params, None,
+            "params NULLed after retention"
+        );
+        assert_eq!(fetched.status, "denied", "row survives");
     }
 }

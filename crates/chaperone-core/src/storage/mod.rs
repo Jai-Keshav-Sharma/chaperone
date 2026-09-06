@@ -5,6 +5,7 @@
 //! on first connection (idempotent). Ledger tables remain append-only (Law 5):
 //! no UPDATE/DELETE exists anywhere for them.
 
+pub mod checkpoint_daemon;
 pub mod schema;
 pub mod store;
 

@@ -12,6 +12,7 @@ pub mod error;
 pub mod rate_limit;
 pub mod routes;
 pub mod state;
+pub mod webhook;
 
 pub use state::AppState;
 
@@ -32,6 +33,10 @@ pub fn app(state: AppState) -> axum::Router {
         .route(
             "/v1/policies",
             axum::routing::get(routes::policies::list_policies),
+        )
+        .route(
+            "/v1/policies/compile",
+            axum::routing::post(routes::policies::compile_policy),
         )
         .route(
             "/v1/policies/{id}",
@@ -62,6 +67,10 @@ pub fn app(state: AppState) -> axum::Router {
             axum::routing::post(routes::escalations::resolve_escalation),
         )
         .route(
+            "/v1/escalations/expire",
+            axum::routing::post(routes::escalations::expire_escalations),
+        )
+        .route(
             "/v1/ledger/entries",
             axum::routing::get(routes::ledger::list_entries),
         )
@@ -83,6 +92,10 @@ pub fn app(state: AppState) -> axum::Router {
         )
         .route("/healthz", axum::routing::get(routes::health::healthz))
         .route("/metrics", axum::routing::get(routes::health::metrics))
+        .route(
+            "/ws/decisions",
+            axum::routing::get(routes::health::ws_decisions),
+        )
         .with_state(state)
 }
 
@@ -219,15 +232,16 @@ mod tests {
             Arc::new(SystemClock),
             None,
         );
-        let state = state::build_state(
-            store.clone(),
+        let state = state::build_state(state::StateConfig {
+            store: store.clone(),
             cache,
-            Arc::new(SystemClock),
-            ServiceMode::Enforce,
-            chaperone_core::decision::service::UngovernedDefault::Block,
-            900,
-            vec![],
-        );
+            clock: Arc::new(SystemClock),
+            mode: ServiceMode::Enforce,
+            ungoverned_default: chaperone_core::decision::service::UngovernedDefault::Block,
+            escalation_ttl_seconds: 900,
+            declarations: vec![],
+            notifier: None,
+        });
         (app(state.clone()), store, state)
     }
 
@@ -475,5 +489,47 @@ mod tests {
                 .unwrap()
                 >= 1
         );
+    }
+
+    /// /metrics renders real decision counters after a verdict (not the
+    /// hardcoded zero the placeholder used to emit).
+    #[tokio::test]
+    async fn metrics_reflect_decisions() {
+        let (app, _store, _state) = test_app().await;
+        // One allow decision first.
+        let _ = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/v1/decisions")
+                    .header("authorization", "Bearer dev-token")
+                    .header("content-type", "application/json")
+                    .body(Body::from(decision_body(50).to_string()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .uri("/metrics")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        let text = String::from_utf8(
+            resp.into_body()
+                .collect()
+                .await
+                .unwrap()
+                .to_bytes()
+                .to_vec(),
+        )
+        .unwrap();
+        assert!(text.contains("chaperone_decisions_total 1"), "got: {text}");
+        assert!(text.contains("chaperone_decisions_allow 1"), "got: {text}");
     }
 }

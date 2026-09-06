@@ -37,16 +37,26 @@ pub fn compile_prompt(sop: &str) -> String {
          Operands: {{\"param\":\"dot.path\"}} | {{\"context\":\"surface|delegation_depth|derived.<attr>\"}} | {{\"value\":...}}\n\
          \n\
          Rules:\n\
+         - effect semantics: \"allow\" = proceed automatically; \"block\" = never proceed; \"escalate\" = require human approval before proceeding. ANY sentence that says \"requires approval\", \"human review\", \"manager sign-off\", or similar is an ESCALATE rule, NEVER a block.\n\
          - Escalate-by-ambiguity: when the SOP is ambiguous, emit an ESCALATE rule whose description is flagged \"AMBIGUOUS: ...\". Never invent thresholds.\n\
-         - Tool names use the universal namespace (shell.exec, fs.read, fs.write, web.fetch, web.search, mcp.<server>.<tool>).\n\
+         - Tool names: use the EXACT tool name the SOP names (e.g. \"stripe.refunds.create\", \"fs.write\", \"shell.exec\"). If the SOP names no tool, use \"stripe.refunds.create\" for refunds, \"fs.write\" for file writes, \"shell.exec\" for shell commands, \"web.fetch\" for web requests. NEVER invent a placeholder like \"mcp.<server>.<tool>\".\n\
          - Match patterns are Cedar-like wildcards: * matches any sequence; no regex.\n\
          - decision order is block > escalate > allow; if the SOP conflicts, flag it with an escalate rule.\n\
+         \n\
+         Here is a COMPLETE, CORRECT example of the exact format you must emit. \
+         Copy this structure exactly — every condition MUST use the \"op\"/\"left\"/\"right\" or \"op\"/\"args\" shape shown here:\n\
+         {{\"ir_version\":\"1\",\"policy_id\":\"pol_refunds\",\"version\":1,\"description\":\"refund policy\",\"rules\":[\n\
+           {{\"rule_id\":\"r-allow-small\",\"description\":\"refunds up to 200 allowed\",\"effect\":\"allow\",\"target\":{{\"tools\":[\"stripe.refunds.create\"],\"agent_roles\":[],\"agent_ids\":[]}},\"condition\":{{\"op\":\"lte\",\"left\":{{\"param\":\"amount\"}},\"right\":{{\"value\":200}}}}}},\n\
+           {{\"rule_id\":\"r-escalate-mid\",\"description\":\"refunds 200-1000 escalate\",\"effect\":\"escalate\",\"target\":{{\"tools\":[\"stripe.refunds.create\"],\"agent_roles\":[],\"agent_ids\":[]}},\"condition\":{{\"op\":\"and\",\"args\":[{{\"op\":\"gt\",\"left\":{{\"param\":\"amount\"}},\"right\":{{\"value\":200}}}},{{\"op\":\"lte\",\"left\":{{\"param\":\"amount\"}},\"right\":{{\"value\":1000}}}}]}}}},\n\
+           {{\"rule_id\":\"r-block-large\",\"description\":\"over 1000 blocked\",\"effect\":\"block\",\"target\":{{\"tools\":[\"stripe.refunds.create\"],\"agent_roles\":[],\"agent_ids\":[]}},\"condition\":{{\"op\":\"gt\",\"left\":{{\"param\":\"amount\"}},\"right\":{{\"value\":1000}}}}}},\n\
+           {{\"rule_id\":\"r-block-missing-id\",\"description\":\"missing customer blocked\",\"effect\":\"block\",\"target\":{{\"tools\":[\"stripe.refunds.create\"],\"agent_roles\":[],\"agent_ids\":[]}},\"condition\":{{\"op\":\"not\",\"args\":[{{\"op\":\"exists\",\"param\":\"customer_id\"}}]}}}}\n\
+         ]}}\n\
          \n\
          SOP:\n\
          ---\n\
          {sop}\n\
          ---\n\
-         Output the IR JSON now."
+         Output ONLY the IR JSON now."
     )
 }
 

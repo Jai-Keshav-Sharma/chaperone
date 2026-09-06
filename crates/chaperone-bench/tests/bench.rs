@@ -163,3 +163,47 @@ fn sample_metrics() -> BenchMetrics {
         scenario_count: 1000,
     }
 }
+
+// --- E3-E6 experiments -----------------------------------------------------
+
+/// E5 tamper evidence: every corruption kind is detected (fraction 1.0).
+#[test]
+fn e5_tamper_evidence_detects_all() {
+    let t = chaperone_bench::experiments::e5_tamper_evidence();
+    assert_eq!(t.detected, t.total, "every tamper kind must be detected");
+    assert_eq!(t.detected_all.value, 1.0);
+}
+
+/// E4 compiler fidelity: every gold SOP compiles to byte-identical IR across
+/// 5 runs (offline fixture determinism).
+#[test]
+fn e4_compiler_fidelity_stable() {
+    let f = chaperone_bench::experiments::e4_compiler_fidelity();
+    assert_eq!(f.stable, f.sops, "all SOPs must be inter-run stable");
+    assert_eq!(f.stability.value, 1.0);
+}
+
+/// E6 determinism: reference + cedar engines agree on every corpus scenario.
+#[test]
+fn e6_determinism_engines_agree() {
+    let d = chaperone_bench::experiments::e6_determinism(1337);
+    assert!(d.scenarios >= 1000, "corpus >= 1000");
+    assert_eq!(
+        d.identical, d.scenarios,
+        "reference and cedar must agree byte-identically"
+    );
+    assert_eq!(d.identical_fraction.value, 1.0);
+}
+
+/// E3: the stale-policy class has real corpus coverage, and the documented
+/// stale-window constants are sane (no-redis < with-redis).
+#[test]
+#[allow(clippy::assertions_on_constants)]
+fn e3_stale_policy_coverage_and_window() {
+    let coverage = chaperone_bench::experiments::e3_stale_policy_coverage(1337);
+    assert!(coverage > 0, "stale-policy class must have corpus coverage");
+    assert!(
+        chaperone_bench::experiments::E3_NO_REDIS_STALE_WINDOW_SECONDS
+            < chaperone_bench::experiments::E3_WITH_REDIS_STALE_WINDOW_SECONDS
+    );
+}

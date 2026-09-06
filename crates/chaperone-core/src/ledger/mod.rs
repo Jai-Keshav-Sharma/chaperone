@@ -6,6 +6,7 @@ pub mod merkle;
 pub mod proof;
 pub mod verify;
 
+use crate::engine::derive::DerivedCounterUpdate;
 use crate::models::ledger::{EntryType, LedgerEntry};
 
 /// Errors from the append-only chain (Law 5: no UPDATE/DELETE, ever).
@@ -57,4 +58,21 @@ impl std::fmt::Display for ChainError {
 pub trait ChainStore {
     async fn last_entry(&self) -> Result<Option<LedgerEntry>, ChainError>;
     async fn insert_entry(&self, entry: &LedgerEntry) -> Result<(), ChainError>;
+
+    /// Append a linked ledger entry AND apply its derived-counter updates in
+    /// one atomic write (docs/data-model.md PERF-1: "updated INSIDE the ledger
+    /// append transaction"). The default impl is a plain link+insert that
+    /// ignores `updates` — pure in-memory seams need no counter persistence;
+    /// the sqlx `Store` overrides this with a single transaction.
+    async fn append_entry(
+        &self,
+        entry: LedgerEntry,
+        updates: &[DerivedCounterUpdate],
+    ) -> Result<(u64, String), ChainError>
+    where
+        Self: Sized,
+    {
+        let _ = updates;
+        crate::ledger::chain::append(self, entry).await
+    }
 }

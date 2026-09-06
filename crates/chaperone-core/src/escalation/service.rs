@@ -2,6 +2,7 @@
 //! human (approve/deny), consume on retry (single-use, params-bound).
 
 use crate::clock::Clock;
+use crate::escalation::webhook::{EscalationEvent, WebhookNotifier};
 use crate::models::decision::DecisionRequest;
 use crate::models::reason_code::ReasonCode;
 use crate::storage::store::{EscalationRow, Store, StoreError};
@@ -28,6 +29,8 @@ pub struct EscalationService {
     /// TTL for new escalations (chaperone.yaml `escalation_ttl_seconds`,
     /// default 900).
     ttl_seconds: i64,
+    /// Optional webhook notifier (flows/03). None = no notifications.
+    notifier: Option<Arc<dyn WebhookNotifier>>,
 }
 
 impl EscalationService {
@@ -36,6 +39,24 @@ impl EscalationService {
             store,
             clock,
             ttl_seconds,
+            notifier: None,
+        }
+    }
+
+    /// Attach a webhook notifier (called by the server wiring when
+    /// `webhook_url`/`webhook_secret` are configured).
+    pub fn with_notifier(mut self, notifier: Arc<dyn WebhookNotifier>) -> Self {
+        self.notifier = Some(notifier);
+        self
+    }
+
+    /// Fire a webhook notification (best-effort: a notification failure never
+    /// affects the escalation lifecycle — the ledger is the source of truth).
+    fn notify(&self, event: EscalationEvent) {
+        if let Some(n) = &self.notifier
+            && let Err(e) = n.notify(&event)
+        {
+            eprintln!("chaperone: webhook notify failed: {e}");
         }
     }
 
@@ -74,7 +95,18 @@ impl EscalationService {
             decision_entry_seq: None,
             resolution_entry_seq: None,
         };
-        self.store.insert_escalation(&row).await
+        let result = self.store.insert_escalation(&row).await;
+        if result.is_ok() {
+            self.notify(EscalationEvent {
+                escalation_id: escalation_id.to_string(),
+                event: "created".into(),
+                agent_id: req.agent_id.clone(),
+                tool: req.tool.clone(),
+                policy_id: policy_id.to_string(),
+                expires_at: crate::clock::rfc3339_utc(expires_at),
+            });
+        }
+        result
     }
 
     /// Attach the deciding ledger entry to the ticket (set decision_entry_seq).

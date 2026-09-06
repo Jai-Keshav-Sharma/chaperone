@@ -1,4 +1,12 @@
 /target/
 **/node_modules/
 *.db
+*.db-shm
+*.db-wal
 /bench/results/
+dashboard/dist/
+
+# Editor/tool local state (not part of the project)
+.commandcode/settings.json
+.commandcode/taste/
+.cursor/

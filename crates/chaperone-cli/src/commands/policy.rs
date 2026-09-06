@@ -30,6 +30,13 @@ pub enum PolicyCommand {
         /// Path to the policy IR JSON file.
         path: String,
     },
+    /// Load a compiled IR file into the DB as an ACTIVE policy version
+    /// (hand-written IR authoring path, flows/01). Validates + transpiles
+    /// before inserting, then activates.
+    Load {
+        /// Path to the policy IR JSON file (as written by `policy compile --out`).
+        path: String,
+    },
     /// Activate a policy version (admin).
     Activate {
         /// Policy id.
@@ -45,6 +52,7 @@ pub async fn run_policy(args: PolicyArgs) -> i32 {
             compile(&sop, &provider, out.as_deref()).await
         }
         PolicyCommand::Lint { path } => lint(&path),
+        PolicyCommand::Load { path } => load(&path).await,
         PolicyCommand::Activate { id, version } => activate(&id, version).await,
     }
 }
@@ -52,10 +60,20 @@ pub async fn run_policy(args: PolicyArgs) -> i32 {
 /// The trust loop: compile → show the IR + conflict report → HUMAN APPROVE
 /// → only then write the policy version as a DRAFT (never active).
 async fn compile(sop_path: &str, provider: &str, out: Option<&str>) -> i32 {
-    let sop = match std::fs::read_to_string(sop_path) {
-        Ok(t) => t,
+    // Ingest the document via the DocumentParser (md/txt/pdf/docx/html), not a
+    // raw text read — the SOP source is a real document (flows/01 ingestion).
+    let bytes = match std::fs::read(sop_path) {
+        Ok(b) => b,
         Err(e) => {
             eprintln!("chaperone: cannot read {sop_path}: {e}");
+            return 1;
+        }
+    };
+    let parser = chaperone_core::compiler::document::ExtensionParser::for_path(sop_path);
+    let sop = match parser.parse(&bytes) {
+        Ok(doc) => doc.text,
+        Err(e) => {
+            eprintln!("chaperone: cannot parse {sop_path}: {e}");
             return 1;
         }
     };
@@ -68,26 +86,30 @@ async fn compile(sop_path: &str, provider: &str, out: Option<&str>) -> i32 {
             return 1;
         }
     };
-    let provider_obj: Box<dyn chaperone_core::compiler::CompilerProvider> = match kind {
-        chaperone_core::compiler::providers::ProviderKind::Fixture => {
-            // In the CLI, the fixture needs a recorded IR — for a real SOP the
-            // HTTP providers produce it. With fixture selected, we look for a
-            // sibling `<sop>.ir.json` recorded response (offline CI path).
-            match std::fs::read_to_string(format!("{sop_path}.ir.json")) {
-                Ok(ir) => Box::new(chaperone_core::compiler::providers::FixtureProvider::new(
-                    ir,
-                )),
-                Err(_) => {
-                    eprintln!(
-                        "chaperone: fixture provider needs a recorded response at {sop_path}.ir.json"
-                    );
-                    return 1;
-                }
+    // The fixture provider needs a recorded sibling response (offline CI path);
+    // everything else is built from the environment.
+    let provider_obj: Box<dyn chaperone_core::compiler::CompilerProvider> = if kind
+        == chaperone_core::compiler::providers::ProviderKind::Fixture
+    {
+        match std::fs::read_to_string(format!("{sop_path}.ir.json")) {
+            Ok(ir) => Box::new(chaperone_core::compiler::providers::FixtureProvider::new(
+                ir,
+            )),
+            Err(_) => {
+                eprintln!(
+                    "chaperone: fixture provider needs a recorded response at {sop_path}.ir.json"
+                );
+                return 1;
             }
         }
-        k => Box::new(chaperone_core::compiler::providers::HttpProviderStub::new(
-            k,
-        )),
+    } else {
+        match chaperone_core::compiler::build_provider(kind) {
+            Ok(p) => p,
+            Err(e) => {
+                eprintln!("chaperone: {e}");
+                return 1;
+            }
+        }
     };
 
     let result = match chaperone_core::compiler::compile_sop(provider_obj.as_ref(), &sop) {
@@ -250,4 +272,105 @@ async fn activate(id: &str, version: i64) -> i32 {
             1
         }
     }
+}
+
+/// Load a compiled IR file into the DB as an ACTIVE policy version. This is the
+/// hand-written IR authoring path (flows/01): validate → transpile → hash →
+/// insert → activate, in one human-initiated step. The IR is already
+/// human-approved (it was shown by `compile`); activation is the explicit gate.
+async fn load(path: &str) -> i32 {
+    let text = match std::fs::read_to_string(path) {
+        Ok(t) => t,
+        Err(e) => {
+            eprintln!("chaperone: cannot read {path}: {e}");
+            return 1;
+        }
+    };
+    let policy: chaperone_core::models::ir::Policy = match serde_json::from_str(&text) {
+        Ok(p) => p,
+        Err(e) => {
+            eprintln!("chaperone: invalid policy IR: {e}");
+            return 1;
+        }
+    };
+    if let Err(errs) = chaperone_core::ir::validate::validate(&policy) {
+        for e in errs {
+            eprintln!(
+                "chaperone: validation error [{:?}] rule {}: {}",
+                e.code,
+                e.rule_id.as_deref().unwrap_or("-"),
+                e.message
+            );
+        }
+        return 1;
+    }
+    let cedar_text = match chaperone_core::engine::cedar_compile::to_cedar(&policy) {
+        Ok(cedars) => cedars
+            .into_iter()
+            .map(|c| c.text)
+            .collect::<Vec<_>>()
+            .join("\n"),
+        Err(e) => {
+            eprintln!("chaperone: transpile failed: {e}");
+            return 1;
+        }
+    };
+    let store = match super::open_store().await {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("chaperone: cannot open store: {e}");
+            return 1;
+        }
+    };
+    let policy_id = policy.policy_id.clone();
+    let ir_json = serde_json::to_string(&policy)
+        .map_err(|e| e.to_string())
+        .unwrap_or_default();
+    let policy_hash =
+        chaperone_core::canonical::sha256_hex(&chaperone_core::canonical::canonical_dumps(
+            &serde_json::from_str::<serde_json::Value>(&ir_json).unwrap_or(serde_json::Value::Null),
+        ));
+    let now = chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+    // Next version = current max + 1.
+    let version = store
+        .list_policy_versions(&policy_id)
+        .await
+        .map(|rows| rows.iter().map(|r| r.version).max().unwrap_or(0) + 1)
+        .unwrap_or(1);
+    // Upsert the shell + insert the version + activate.
+    if let Err(e) = store
+        .upsert_policy(&policy_id, &policy.description, None)
+        .await
+    {
+        eprintln!("chaperone: upsert policy failed: {e}");
+        return 1;
+    }
+    if let Err(e) = store
+        .insert_policy_version(&chaperone_core::storage::store::PolicyVersionRow {
+            policy_id: policy_id.clone(),
+            version,
+            status: "active".into(),
+            raw_sop_text: None,
+            ir_json,
+            cedar_text,
+            policy_hash,
+            conflict_report: None,
+            test_report: None,
+            compiler_model: None,
+            created_by: Some("chaperone policy load".into()),
+            approved_by: Some("chaperone policy load".into()),
+            created_at: now,
+            activated_at: None,
+        })
+        .await
+    {
+        eprintln!("chaperone: insert version failed: {e}");
+        return 1;
+    }
+    if let Err(e) = store.activate_policy_version(&policy_id, version).await {
+        eprintln!("chaperone: activation failed: {e}");
+        return 1;
+    }
+    println!("chaperone: policy {policy_id} v{version} loaded + activated");
+    0
 }

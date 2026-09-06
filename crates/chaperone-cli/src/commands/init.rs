@@ -47,6 +47,39 @@ pub async fn run_init(args: InitArgs) -> i32 {
         return 1;
     }
 
+    // 2.5 Register the default local agent the hook/shim use (CHAPERONE_AGENT_ID
+    //     defaults to "local_agent"). Without this, the demo blocks with
+    //     AGENT_UNKNOWN instead of a policy RULE_MATCH — a weak first impression.
+    store
+        .upsert_agent_identity(&chaperone_core::storage::store::AgentIdentityRow {
+            agent_id: "local_agent".into(),
+            name: "Local Agent".into(),
+            role: "worker".into(),
+            spiffe_id: None,
+            tenant_id: None,
+            max_delegation_depth: 1,
+            is_active: true,
+            created_at: "2026-08-25T00:00:00Z".into(),
+        })
+        .await
+        .ok(); // idempotent; a pre-existing identity is fine
+
+    // A named support agent — the actor the customer-facing support console
+    // (and gateway) authorizes. The refund demo drives this identity.
+    store
+        .upsert_agent_identity(&chaperone_core::storage::store::AgentIdentityRow {
+            agent_id: "support_agent".into(),
+            name: "Support Agent".into(),
+            role: "support".into(),
+            spiffe_id: None,
+            tenant_id: None,
+            max_delegation_depth: 1,
+            is_active: true,
+            created_at: "2026-08-25T00:00:00Z".into(),
+        })
+        .await
+        .ok();
+
     // 3. Default API key (idempotent: skip if already present).
     let dev_key_hash = chaperone_core::canonical::sha256_hex("dev-token");
     let key_exists = store
@@ -70,6 +103,31 @@ pub async fn run_init(args: InitArgs) -> i32 {
             .ok(); // ignore if already exists (race-safe)
     }
 
+    // A demo key BOUND to the local agent — the gateway pins identity to the
+    // key (review-4 B3), so an admin key (agent_id: None) is refused for
+    // tools/call. This key lets the gateway demo run out of the box.
+    let demo_key_hash = chaperone_core::canonical::sha256_hex("demo-agent-token");
+    if store
+        .get_api_key(&demo_key_hash)
+        .await
+        .ok()
+        .flatten()
+        .is_none()
+    {
+        store
+            .insert_api_key(&chaperone_core::storage::store::ApiKeyRow {
+                key_hash: demo_key_hash,
+                agent_id: Some("local_agent".into()),
+                is_admin: false,
+                created_at: chrono::Utc::now().to_rfc3339(),
+                last_used_at: None,
+                expires_at: None,
+                revoked_at: None,
+            })
+            .await
+            .ok();
+    }
+
     // 4. Hook wiring: merge into .claude/settings.json + .cursor/hooks.json
     //    (merge, never clobber — flows/05).
     let home = std::env::var("USERPROFILE")
@@ -81,10 +139,21 @@ pub async fn run_init(args: InitArgs) -> i32 {
         return 1;
     }
 
-    // 4. Autostart (unless opted out).
-    if !args.no_autostart {
+    // Cursor project-level hooks (flows/05): fail-closed by config (Law 1).
+    let cursor_hooks = ".cursor/hooks.json";
+    if let Err(e) = write_cursor_hooks(cursor_hooks) {
+        eprintln!("chaperone: cursor hook wiring failed: {e}");
+        return 1;
+    }
+
+    // 4. Autostart (unless opted out): register the gate to run at login.
+    //    Best-effort: a failure warns but does not fail init (the user can run
+    //    `serve` manually — autostart is convenience, not correctness).
+    if !args.no_autostart
+        && let Err(e) = install_autostart()
+    {
         eprintln!(
-            "chaperone: autostart installation is platform-specific (Phase 10.5); run 'chaperone serve' manually"
+            "chaperone: warning: autostart not installed ({e}); run 'chaperone serve' manually"
         );
     }
 
@@ -144,6 +213,12 @@ async fn load_starter_pack(store: &chaperone_core::storage::store::Store) -> Res
                 "condition": {"op": "matches", "left": {"param": "command"}, "pattern": "^*rm -rf*$"}
             },
             {
+                "rule_id": "s-block-delete",
+                "description": "block file deletions (the agent may pivot from shell to the Delete tool)",
+                "effect": "block",
+                "target": {"tools": ["fs.delete"]}
+            },
+            {
                 "rule_id": "s-block-secrets",
                 "description": "block writes to secret paths",
                 "effect": "block",
@@ -151,10 +226,23 @@ async fn load_starter_pack(store: &chaperone_core::storage::store::Store) -> Res
                 "condition": {"op": "matches", "left": {"param": "path"}, "pattern": "^*env*$"}
             },
             {
+                "rule_id": "s-block-secret-read",
+                "description": "block reads of secret paths",
+                "effect": "block",
+                "target": {"tools": ["fs.read"]},
+                "condition": {"op": "matches", "left": {"param": "path"}, "pattern": "^*\\.env*$"}
+            },
+            {
                 "rule_id": "s-allow-benign-read",
                 "description": "benign reads within the workspace",
                 "effect": "allow",
                 "target": {"tools": ["fs.read"]}
+            },
+            {
+                "rule_id": "s-allow-benign-search",
+                "description": "local grep/glob searches (pure-local, high-frequency)",
+                "effect": "allow",
+                "target": {"tools": ["local.grep", "local.todo"]}
             },
             {
                 "rule_id": "s-allow-benign-shell",
@@ -168,6 +256,20 @@ async fn load_starter_pack(store: &chaperone_core::storage::store::Store) -> Res
                 "description": "safe web reads",
                 "effect": "allow",
                 "target": {"tools": ["web.fetch", "web.search"]}
+            },
+            {
+                "rule_id": "s-escalate-force-push",
+                "description": "AMBIGUOUS: force pushes to protected branches need human approval",
+                "effect": "escalate",
+                "target": {"tools": ["git.push"]},
+                "condition": {"op": "eq", "left": {"param": "force"}, "right": {"value": true}}
+            },
+            {
+                "rule_id": "s-allow-git-push",
+                "description": "non-force git push",
+                "effect": "allow",
+                "target": {"tools": ["git.push"]},
+                "condition": {"op": "eq", "left": {"param": "force"}, "right": {"value": false}}
             }
         ]
     });
@@ -262,6 +364,130 @@ fn remove_hook_entry(path: &str) -> Result<(), String> {
     std::fs::write(path, out).map_err(|e| e.to_string())
 }
 
+/// Register the gate to run at login (flows/09 autostart). Best-effort: a
+/// failure is reported but does NOT fail init (the user can run `serve`
+/// manually) — autostart is convenience, not a correctness requirement.
+fn install_autostart() -> Result<(), String> {
+    #[cfg(windows)]
+    {
+        // Windows: a scheduled task at logon runs `chaperone serve`.
+        let exe = std::env::current_exe()
+            .map_err(|e| e.to_string())?
+            .to_string_lossy()
+            .to_string();
+        let status = std::process::Command::new("schtasks")
+            .args([
+                "/Create",
+                "/F",
+                "/TN",
+                "ChaperoneGate",
+                "/TR",
+                &format!("\"{exe}\" serve"),
+                "/SC",
+                "ONLOGON",
+            ])
+            .status()
+            .map_err(|e| e.to_string())?;
+        if !status.success() {
+            return Err(format!("schtasks exited {status}"));
+        }
+        Ok(())
+    }
+    #[cfg(target_os = "macos")]
+    {
+        let exe = std::env::current_exe()
+            .map_err(|e| e.to_string())?
+            .to_string_lossy()
+            .to_string();
+        let plist = format!(
+            "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n\
+             <!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n\
+             <plist version=\"1.0\"><dict>\n\
+               <key>Label</key><string>com.chaperone.gate</string>\n\
+               <key>ProgramArguments</key><array><string>{exe}</string><string>serve</string></array>\n\
+               <key>RunAtLoad</key><true/>\n\
+             </dict></plist>\n"
+        );
+        std::fs::write(
+            std::path::Path::new(&std::env::var("HOME").unwrap_or_else(|_| ".".into()))
+                .join("Library/LaunchAgents/com.chaperone.gate.plist"),
+            plist,
+        )
+        .map_err(|e| e.to_string())?;
+        Ok(())
+    }
+    #[cfg(target_os = "linux")]
+    {
+        let exe = std::env::current_exe()
+            .map_err(|e| e.to_string())?
+            .to_string_lossy()
+            .to_string();
+        let unit = format!(
+            "[Unit]\nDescription=Chaperone authorization gate\nAfter=network.target\n\n\
+             [Service]\nExecStart={exe} serve\nRestart=on-failure\n\n\
+             [Install]\nWantedBy=default.target\n"
+        );
+        std::fs::write(
+            std::path::Path::new(&std::env::var("HOME").unwrap_or_else(|_| ".".into()))
+                .join(".config/systemd/user/chaperone.service"),
+            unit,
+        )
+        .map_err(|e| e.to_string())?;
+        Ok(())
+    }
+    #[cfg(not(any(windows, target_os = "macos", target_os = "linux")))]
+    {
+        Err("autostart not supported on this platform".to_string())
+    }
+}
+
+/// Write the project-level `.cursor/hooks.json` (flows/05): fail-closed by
+/// config (Law 1 — Cursor defaults to fail-OPEN). Merge-preserves any existing
+/// entries; the chaperone entries are added idempotently.
+fn write_cursor_hooks(path: &str) -> Result<(), String> {
+    let mut cfg: JsonValue = match std::fs::read_to_string(path) {
+        Ok(text) => serde_json::from_str(&text).unwrap_or(json!({"version": 1, "hooks": {}})),
+        Err(_) => json!({"version": 1, "hooks": {}}),
+    };
+    if cfg.get("version").is_none() {
+        cfg["version"] = json!(1);
+    }
+    if cfg.get("hooks").is_none() {
+        cfg["hooks"] = json!({});
+    }
+    // Ensure the fail-closed arrays exist and carry the chaperone entry. We
+    // wire the GENERIC preToolUse hook (fires for Delete/Write/Read/Shell/Task)
+    // plus the two shell/read-specific hooks. preToolUse is the one that closes
+    // the "agent pivots from shell to the Delete tool" fail-open.
+    for event in [
+        "preToolUse",
+        "beforeShellExecution",
+        "beforeMCPExecution",
+        "beforeReadFile",
+    ] {
+        let entry = json!({
+            "command": "chaperone hook",
+            "timeout": 35,
+            "failClosed": true
+        });
+        let arr = cfg["hooks"][event].as_array().cloned().unwrap_or_default();
+        let mut arr = arr;
+        if !arr.iter().any(|e| e["command"] == "chaperone hook") {
+            arr.push(entry);
+        }
+        cfg["hooks"][event] = JsonValue::Array(arr);
+    }
+    let out = serde_json::to_string_pretty(&cfg).map_err(|e| e.to_string())?;
+    // Never write outside the target project dir: the path is a literal relative
+    // `.cursor/hooks.json` (flows/05 "never writes outside target project dir").
+    if let Some(parent) = std::path::Path::new(path).parent()
+        && !parent.as_os_str().is_empty()
+    {
+        std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    std::fs::write(path, out).map_err(|e| e.to_string())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -309,6 +535,48 @@ mod tests {
             !std::fs::read_to_string(&path)
                 .unwrap()
                 .contains("chaperone hook")
+        );
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Cursor hooks.json must be fail-closed (failClosed: true) across the
+    /// three enforcement events, and idempotent (flows/05 review-3 P0).
+    #[test]
+    fn cursor_hooks_fail_closed_and_idempotent() {
+        let dir =
+            std::env::temp_dir().join(format!("chaperone_cursor_test_{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("hooks.json");
+        let path = path.to_str().unwrap().to_string();
+
+        write_cursor_hooks(&path).expect("write");
+        let v: JsonValue = serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+        assert_eq!(v["version"], 1);
+        for event in [
+            "beforeShellExecution",
+            "beforeMCPExecution",
+            "beforeReadFile",
+        ] {
+            let entries = v["hooks"][event].as_array().expect(event);
+            assert_eq!(entries.len(), 1, "{event} has one entry");
+            assert_eq!(entries[0]["command"], "chaperone hook");
+            assert_eq!(
+                entries[0]["timeout"], 35,
+                "{event} timeout above prompt bound"
+            );
+            assert_eq!(
+                entries[0]["failClosed"], true,
+                "{event} must be fail-closed"
+            );
+        }
+
+        // Idempotent: a second write does not duplicate.
+        write_cursor_hooks(&path).expect("write again");
+        let v: JsonValue = serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+        assert_eq!(
+            v["hooks"]["beforeShellExecution"].as_array().unwrap().len(),
+            1
         );
 
         let _ = std::fs::remove_dir_all(&dir);

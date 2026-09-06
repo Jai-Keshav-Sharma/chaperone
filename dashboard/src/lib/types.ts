@@ -84,3 +84,32 @@ export interface CheckpointRow {
   anchored_tsa: string | null;
   created_at: string;
 }
+
+export interface PolicyShell {
+  policy_id: string;
+  name: string;
+  active_version: number | null;
+}
+
+export interface PolicyRule {
+  rule_id: string;
+  description: string;
+  effect: "allow" | "block" | "escalate";
+  target: { tools: string[]; agent_roles: string[]; agent_ids: string[] };
+  condition: unknown | null;
+}
+
+export interface Policy {
+  ir_version: string;
+  policy_id: string;
+  version: number;
+  description: string;
+  rules: PolicyRule[];
+}
+
+export interface CompileResponse {
+  policy: Policy;
+  cedar_text: string;
+  conflict_report: string;
+  model: string;
+}

@@ -8,3 +8,4 @@
 
 pub mod service;
 pub mod sweeper;
+pub mod webhook;

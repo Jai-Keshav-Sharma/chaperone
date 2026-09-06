@@ -55,6 +55,10 @@ pub async fn decide(
             ErrorCode::MalformedRequest,
             e.to_string(),
         ),
-        None => (StatusCode::OK, Json(env.response)).into_response(),
+        None => {
+            // Successful verdict → observability + live stream (flows/02/08).
+            crate::state::observe_decision(&state, &env.response);
+            (StatusCode::OK, Json(env.response)).into_response()
+        }
     }
 }

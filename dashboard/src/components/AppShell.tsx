@@ -2,20 +2,22 @@
 // content area with the active view. Theme locked dark (index.css).
 
 import { useState } from "react";
-import { ShieldCheck, Tray, Radio, BookOpenText } from "@phosphor-icons/react";
+import { ShieldCheck, Tray, Radio, BookOpenText, FileText } from "@phosphor-icons/react";
 import { MetricsTiles } from "./MetricsTiles";
 import { InboxView } from "./InboxView";
 import { StreamView } from "./StreamView";
 import { LedgerView } from "./LedgerView";
+import { PoliciesView } from "./PoliciesView";
 import { TokenGate } from "./TokenGate";
 import { hasSessionToken } from "../lib/api";
 
-type View = "inbox" | "stream" | "ledger";
+type View = "inbox" | "stream" | "ledger" | "policies";
 
 const NAV: { id: View; label: string; icon: React.ReactNode }[] = [
   { id: "inbox", label: "Inbox", icon: <Tray size={18} weight="duotone" /> },
   { id: "stream", label: "Stream", icon: <Radio size={18} weight="duotone" /> },
   { id: "ledger", label: "Ledger", icon: <BookOpenText size={18} weight="duotone" /> },
+  { id: "policies", label: "Policies", icon: <FileText size={18} weight="duotone" /> },
 ];
 
 export function App() {
@@ -59,6 +61,7 @@ export function App() {
               {view === "inbox" && <InboxView />}
               {view === "stream" && <StreamView />}
               {view === "ledger" && <LedgerView />}
+              {view === "policies" && <PoliciesView />}
             </div>
           </main>
         </div>

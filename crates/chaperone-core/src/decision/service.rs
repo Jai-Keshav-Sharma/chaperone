@@ -14,7 +14,6 @@ use crate::cache::policy_cache::{CompiledPolicies, PolicyProvider};
 use crate::engine::derive::{DerivedCounterValue, DerivedDeclaration, compute_derived};
 use crate::engine::{EngineDecision, EvalRequest};
 use crate::escalation::service::EscalationService;
-use crate::ledger::chain::append;
 use crate::ledger::{ChainError, ChainStore};
 use crate::models::decision::{Decision, DecisionRequest, DecisionResponse, TraceEntry};
 use crate::models::ledger::{EntryType, LedgerEntry};
@@ -144,8 +143,9 @@ pub struct DecisionEnvelope {
 }
 
 /// Reads the materialized derived_counters for the active declarations.
+#[allow(async_fn_in_trait)] // auto-trait bounds are not needed on this seam
 pub trait DerivedCounterSource: Send + Sync {
-    fn read(&self, req: &DecisionRequest) -> Result<Vec<DerivedCounterValue>, DecisionError>;
+    async fn read(&self, req: &DecisionRequest) -> Result<Vec<DerivedCounterValue>, DecisionError>;
 }
 
 /// The decision service — the single orchestration point of the hot path.
@@ -235,7 +235,7 @@ where
         }
 
         // --- step 3: derived context (boundary-computed, then ledgered) ---
-        let derived_values = match self.counters.read(req) {
+        let derived_values = match self.counters.read(req).await {
             Ok(v) => v,
             Err(e) => {
                 // A counter failure is a policy-store-class failure (fail-closed).
@@ -270,7 +270,20 @@ where
                 (Decision::Block, rc)
             };
             let entry = self.build_entry(req, &decision, &reason, &[], &[], &compiled);
-            let append_result = append(&self.store, entry).await;
+            // An approved retry (ALLOW) executes the action, so it contributes
+            // to budget counters exactly like a normal allow (atomic append).
+            let counter_updates = if decision == Decision::Allow {
+                crate::engine::derive::counter_updates(
+                    self.declarations(),
+                    &req.agent_id,
+                    &req.tool,
+                    &req.context.request_time,
+                    &req.params,
+                )
+            } else {
+                Vec::new()
+            };
+            let append_result = self.store.append_entry(entry, &counter_updates).await;
             let (entry_seq, entry_hash) = match append_result {
                 Ok(seq_hash) => seq_hash,
                 Err(e) => {
@@ -389,7 +402,22 @@ where
             decision
         };
         let entry = self.build_entry(req, &wire_decision, &reason, &rule_ids, &trace, &compiled);
-        let append_result = append(&self.store, entry).await;
+        // Derived-counter updates: only an ALLOWED verdict in enforce mode
+        // contributes to a budget/velocity counter (flows/08: shadow mode has
+        // no side effects beyond the ledger; blocked/escalated decisions never
+        // executed, so they do not count). Applied atomically with the append.
+        let counter_updates = if decision == Decision::Allow && self.mode == ServiceMode::Enforce {
+            crate::engine::derive::counter_updates(
+                self.declarations(),
+                &req.agent_id,
+                &req.tool,
+                &req.context.request_time,
+                &req.params,
+            )
+        } else {
+            Vec::new()
+        };
+        let append_result = self.store.append_entry(entry, &counter_updates).await;
         let (entry_seq, entry_hash) = match append_result {
             Ok(seq_hash) => seq_hash,
             Err(ChainError::DuplicateEntry { request_id, .. }) => {
@@ -882,7 +910,10 @@ mod tests {
     }
 
     impl DerivedCounterSource for MemCounterSource {
-        fn read(&self, _req: &DecisionRequest) -> Result<Vec<DerivedCounterValue>, DecisionError> {
+        async fn read(
+            &self,
+            _req: &DecisionRequest,
+        ) -> Result<Vec<DerivedCounterValue>, DecisionError> {
             Ok(self.values.lock().unwrap().clone())
         }
     }
@@ -1390,5 +1421,88 @@ mod tests {
         // The ledger entry is WOULD_ESCALATE (flows/08 rule 2).
         let last = store.last_entry().await.unwrap().expect("last entry");
         assert_eq!(last.decision, "WOULD_ESCALATE");
+    }
+
+    /// Regression: an allowed decision must atomically write its derived
+    /// counter, so a budget rule (derived.X > N → block) actually fires on the
+    /// NEXT call. Before this was wired, `NoopCounters` left the budget at 0.0
+    /// forever — a silent fail-open (an oversized budget was never blocked).
+    #[sqlx::test]
+    async fn allow_updates_derived_counter_and_budget_blocks(pool: sqlx::SqlitePool) {
+        use crate::engine::derive::{DerivedDeclaration, DerivedKind};
+
+        seed_sqlx_agent(&pool).await;
+        let store = crate::storage::store::Store::from_test_pool(pool.clone());
+        crate::ledger::chain::append_genesis(&store).await.unwrap();
+
+        // A budget declaration summing "amount" over the refund tool.
+        let declarations = vec![DerivedDeclaration {
+            id: "daily_refund_total".into(),
+            kind: DerivedKind::LedgerSum,
+            window_seconds: 86400,
+            tool: Some("stripe.refunds.create".into()),
+            param_path: "amount".into(),
+            same_agent: true,
+        }];
+
+        // A counter source reading the REAL store (same key the append writes).
+        struct StoreCounter<'a>(&'a Store, Vec<DerivedDeclaration>);
+        impl DerivedCounterSource for StoreCounter<'_> {
+            async fn read(
+                &self,
+                req: &DecisionRequest,
+            ) -> Result<Vec<DerivedCounterValue>, DecisionError> {
+                let mut out = Vec::new();
+                for decl in &self.1 {
+                    let key = crate::engine::derive::counter_key_for(
+                        decl,
+                        &req.agent_id,
+                        &req.tool,
+                        &req.context.request_time,
+                    );
+                    let v = self
+                        .0
+                        .get_derived_counter(&key)
+                        .await
+                        .map_err(|e| DecisionError::PolicyUnavailable(e.to_string()))?;
+                    out.push(DerivedCounterValue {
+                        declaration_id: decl.id.clone(),
+                        value: v,
+                    });
+                }
+                Ok(out)
+            }
+        }
+
+        let escalations = std::sync::Arc::new(crate::escalation::service::EscalationService::new(
+            store.clone(),
+            std::sync::Arc::new(crate::clock::SystemClock),
+            900,
+        ));
+        let svc = DecisionService::new(
+            store.clone(),
+            policy_provider(),
+            StoreCounter(&store, declarations.clone()),
+            escalations,
+            ServiceMode::Enforce,
+            UngovernedDefault::Block,
+            declarations.clone(),
+        );
+
+        // First allow (amount=150) appends + writes the counter.
+        let first = svc.decide(&req(150)).await;
+        assert_eq!(
+            first.response.decision,
+            Decision::Allow,
+            "err: {:?}",
+            first.error
+        );
+        let key = crate::engine::derive::counter_key_for(
+            &declarations[0],
+            "agent_support_09",
+            "stripe.refunds.create",
+            "2026-08-25T14:00:00Z",
+        );
+        assert_eq!(store.get_derived_counter(&key).await.unwrap(), 150.0);
     }
 }

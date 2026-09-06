@@ -4,7 +4,6 @@
 
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useDecisionStream } from "../lib/useDecisionStream";
-import { MetricsTiles } from "./MetricsTiles";
 import type { DecisionResponse } from "../lib/types";
 
 function verdictChip(decision: DecisionResponse["decision"]) {
@@ -30,7 +29,6 @@ export function StreamView() {
 
   return (
     <div>
-      <MetricsTiles streamCount={decisions.length} />
       <div className="mt-6">
         <h2 className="text-lg font-semibold text-mist-300">
           Live decisions

@@ -7,6 +7,7 @@ pub mod gateway;
 pub mod hook;
 pub mod init;
 pub mod ledger;
+pub mod mock_mcp;
 pub mod policy;
 pub mod serve;
 pub mod shim;
@@ -29,6 +30,7 @@ pub async fn dispatch(command: Command) -> i32 {
         Command::Policy(args) => policy::run_policy(args).await,
         Command::Ledger(args) => ledger::run_ledger(args).await,
         Command::Bench(args) => bench::run_bench(args).await,
+        Command::MockStripe(args) => mock_mcp::run_mock_mcp(args).await,
     }
 }
 

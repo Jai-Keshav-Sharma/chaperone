@@ -104,3 +104,33 @@ pub async fn resolve_escalation(
         ),
     }
 }
+
+/// POST /v1/escalations/expire — manually expire overdue pending escalations
+/// (flows/03 "manual POST /v1/escalations/expire for deterministic tests").
+pub async fn expire_escalations(State(state): State<AppState>, headers: HeaderMap) -> Response {
+    let principal = match auth::authenticate(&state.store, auth::bearer_header(&headers)).await {
+        Ok(p) => p,
+        Err(b) => return *b,
+    };
+    if !principal.is_admin {
+        return error::gate_error(
+            StatusCode::FORBIDDEN,
+            chaperone_core::models::errors::ErrorCode::AgentKeyUnknown,
+            "admin key required",
+        );
+    }
+    // Sweep through the escalation service (append-then-mark: each expiry
+    // appends an ESCALATION_RESOLVED(EXPIRED) ledger entry before the row flips).
+    match state.escalations.sweep_due().await {
+        Ok(expired) => (
+            StatusCode::OK,
+            Json(serde_json::json!({"expired": expired})),
+        )
+            .into_response(),
+        Err(_) => error::gate_error(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            chaperone_core::models::errors::ErrorCode::PolicyNotFound,
+            "expire failed",
+        ),
+    }
+}

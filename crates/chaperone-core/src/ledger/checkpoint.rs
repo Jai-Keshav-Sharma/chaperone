@@ -73,6 +73,64 @@ pub fn sign_checkpoint(
     }
 }
 
+/// Build an UNSIGNED dev checkpoint (data-model: `signature NULL in unsigned
+/// dev mode`). `body` + `text` are still produced so the checkpoint row is
+/// well-formed and the C2SP text is inspectable; only the signature line is
+/// omitted. This is the dev-mode default when no signing key is configured.
+pub fn unsigned_checkpoint(origin: &str, tree_size: u64, root_hash: &str) -> Checkpoint {
+    let body = note_body(origin, tree_size, root_hash);
+    Checkpoint {
+        origin: origin.to_string(),
+        tree_size,
+        root_hash: root_hash.to_string(),
+        key_id: String::new(),
+        signature: None,
+        body: body.clone(),
+        text: body,
+    }
+}
+
+/// Load an Ed25519 signing key from raw 32 seed bytes (hex- or base64-encoded,
+/// or raw 32 bytes as-is). The documented `checkpoint_signing_key` config is a
+/// file path; the caller reads the file and passes the bytes here.
+pub fn signing_key_from_bytes(bytes: &[u8]) -> Result<SigningKey, CheckpointError> {
+    let seed = decode_key_seed(bytes)?;
+    Ok(SigningKey::from_bytes(&seed))
+}
+
+/// Decode a 32-byte seed from hex, base64, or raw bytes (the three encodings a
+/// key file may use). Errors on anything that is not exactly 32 bytes.
+fn decode_key_seed(bytes: &[u8]) -> Result<[u8; 32], CheckpointError> {
+    let trimmed = {
+        let s = std::str::from_utf8(bytes).map_err(|_| CheckpointError::new("key is not UTF-8"))?;
+        s.trim().as_bytes().to_vec()
+    };
+    if trimmed.len() == 32 {
+        let mut seed = [0u8; 32];
+        seed.copy_from_slice(&trimmed);
+        return Ok(seed);
+    }
+    if trimmed.len() == 64 && trimmed.iter().all(|b| b.is_ascii_hexdigit()) {
+        let mut seed = [0u8; 32];
+        for (i, byte) in seed.iter_mut().enumerate() {
+            *byte =
+                u8::from_str_radix(std::str::from_utf8(&trimmed[i * 2..i * 2 + 2]).unwrap(), 16)
+                    .map_err(|e| CheckpointError::new(format!("bad hex key: {e}")))?;
+        }
+        return Ok(seed);
+    }
+    if let Ok(decoded) = base64::engine::general_purpose::STANDARD.decode(&trimmed)
+        && decoded.len() == 32
+    {
+        let mut seed = [0u8; 32];
+        seed.copy_from_slice(&decoded);
+        return Ok(seed);
+    }
+    Err(CheckpointError::new(
+        "signing key must be 32 raw bytes, 64 hex chars, or base64 of 32 bytes",
+    ))
+}
+
 /// Verify a checkpoint against the known keys (any key_id in the list —
 /// historical keys stay verifiable after rotation, review-2 SEC-1).
 /// Returns the key_id that verified.

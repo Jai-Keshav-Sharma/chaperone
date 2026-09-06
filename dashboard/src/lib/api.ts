@@ -5,8 +5,11 @@
 
 import type {
   CheckpointRow,
+  CompileResponse,
+  DecisionResponse,
   EscalationRow,
   LedgerEntry,
+  PolicyShell,
   VerifyResult,
 } from "./types";
 
@@ -73,4 +76,36 @@ export const api = {
     ),
   verifyLedger: () => request<VerifyResult>("/ledger/verify"),
   checkpoints: () => request<CheckpointRow[]>("/ledger/checkpoints"),
+  listPolicies: () => request<PolicyShell[]>("/policies"),
+  compilePolicy: (document: Uint8Array, filename: string, provider: string) =>
+    request<CompileResponse>("/policies/compile", {
+      method: "POST",
+      body: JSON.stringify({
+        document: Array.from(document),
+        filename,
+        provider,
+      }),
+    }),
+  activatePolicy: (id: string, version: number) =>
+    request<{ activated: boolean }>(`/policies/${id}/activate`, {
+      method: "POST",
+      body: JSON.stringify({ version }),
+    }),
+  decide: (body: {
+    request_id: string;
+    agent_id: string;
+    tool: string;
+    params: Record<string, unknown>;
+    context: {
+      session_id: string | null;
+      surface: string;
+      delegation_depth: number;
+      request_time: string;
+    };
+    escalation_id: string | null;
+  }) =>
+    request<DecisionResponse>("/decisions", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
 };

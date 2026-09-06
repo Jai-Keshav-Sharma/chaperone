@@ -38,8 +38,11 @@ export function MetricsTiles({ streamCount = 0 }: { streamCount?: number }) {
       }
     };
     load();
+    // Poll every 5s so pending/ledger counts stay live without a manual refresh.
+    const timer = setInterval(load, 5000);
     return () => {
       cancelled = true;
+      clearInterval(timer);
     };
   }, [streamCount]);
 

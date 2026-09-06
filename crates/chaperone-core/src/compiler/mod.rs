@@ -6,9 +6,13 @@
 //! report) → HUMAN REVIEW. NEVER auto-activates: activation is a separate,
 //! human-gated step (the trust loop).
 
+pub mod document;
 pub mod pipeline;
 pub mod prompts;
 pub mod providers;
 
 pub use pipeline::{CompileError, CompileResult, compile_sop};
-pub use providers::{CompilerProvider, FixtureProvider, ProviderKind};
+pub use providers::{
+    AnthropicProvider, CompilerProvider, FixtureProvider, OllamaProvider, OpenaiCompatProvider,
+    ProviderKind, build_provider,
+};
