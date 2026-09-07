@@ -1,181 +1,203 @@
-# Chaperone
+<div align="center">
 
-**The deterministic authorization gate for AI agents.**
+# chaperone
 
-ALLOW / BLOCK / ESCALATE before every tool call, compiled from plain-English
-policy, with a tamper-evident ledger you can hand to an auditor.
+**Seatbelts for `--dangerously-skip-permissions`.**
 
-> *Seatbelts for `--dangerously-skip-permissions`.*
+A deterministic authorization gate for AI agents. ALLOW / BLOCK / ESCALATE
+before every tool call, compiled from plain-English policy, with a
+tamper-evident ledger you can hand to an auditor.
 
-Apache-2.0 · single Rust binary · self-hostable · no LLM in the decision path.
+[![CI](https://github.com/Jai-Keshav-Sharma/chaperone/actions/workflows/ci.yml/badge.svg)](https://github.com/Jai-Keshav-Sharma/chaperone/actions/workflows/ci.yml)
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
+[![Rust](https://img.shields.io/badge/rust-1.85%2B-orange)](https://www.rust-lang.org)
+[![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen)](CONTRIBUTING.md)
+
+[Quickstart](#quickstart) · [Demo](#demo) · [Why not prompt-based guards?](#why-not-prompt-based-guards) · [Compliance](#compliance) · [Architecture](#architecture)
+
+</div>
 
 ---
 
-## The problem
+<video src="https://github.com/user-attachments/assets/7307875b-b388-4b0b-adad-13dfb551395e"
+       controls muted playsinline width="100%"></video>
 
-AI agents are about to run everywhere — customer support, code, operations. The
-moment one runs with permissions turned off, or gets prompt-injected, there is
-nothing between a bad instruction and real consequences. Existing tools either
-ask a human every time (unusable at scale) or trust the model (unverifiable).
+<p align="center"><sub>The full loop: agent asks to run <code>rm -rf /</code> → BLOCKED with a ledger receipt → risky refund ESCALATES → human approves → retry ALLOWED. One gate, every tool call.</sub></p>
 
-## What Chaperone is
+## The 10-second version
 
-Chaperone is a **pre-action authorization gate**. Before any tool executes, it
-evaluates the action against a deterministic policy and returns exactly one of
-three verdicts:
+Your agent runs 40 tool calls a minute. You are not watching. One prompt
+injection, one hallucinated cleanup command, one "delete the test database"
+and it is gone.
 
-| Verdict | Meaning |
+Chaperone stands between the agent and every tool. It is not a prompt, not a
+wrapper around the model, not an honor system. It is a policy engine with one
+job: every call gets a verdict, every verdict gets a receipt.
+
+```
+ agent ──▶ tool call ──▶ ┌───────────────┐
+                         │  chaperone    │──▶ ALLOW    forward, ledgered
+                         │  deterministic│──▶ BLOCK    deny, ledgered
+                         │  < 6 ms p95   │──▶ ESCALATE human inbox, params-bound
+                         └───────────────┘
+                                │
+                                ▼
+                     append-only hash chain
+                     RFC 6962 Merkle checkpoints
+                     Ed25519-signed, exportable
+```
+
+No LLM in the decision path. A prompt injection cannot talk its way around a
+rule, because there is nothing to talk to.
+
+## Demo
+
+<!-- Screenshots land here:
+| | |
 |---|---|
-| **ALLOW** | Safe to proceed. Forward the call. |
-| **BLOCK** | Deny, with no side effects. |
-| **ESCALATE** | Needs a human. Bound approval to these exact parameters, with an expiry. |
+| ![Approval inbox](docs/assets/inbox.png) | ![Live stream](docs/assets/stream.png) |
+*Left: the human-in-the-loop inbox. Right: the live decision stream.*
+*More screens in [`docs/assets/`](docs/assets/).*
+-->
 
-Every single decision — allow, block, or escalate — is written to an
-**append-only, hash-chained ledger** before the verdict is returned. No ledger
-entry, no verdict, interceptor blocks. That ordering is the core invariant:
-*fail-closed, always.*
+## Quickstart
 
-## Why it's different
+```bash
+git clone https://github.com/Jai-Keshav-Sharma/chaperone.git
+cd chaperone
+cargo build -p chaperone-cli --release
 
-**Deterministic, not probabilistic.** The decision engine is a formally-verified
-policy engine (Cedar). There is no LLM in the decision path, so prompt injection
-cannot talk its way around a rule. A policy is compiled from plain English
-*offline*, reviewed by a human, and only then activated. The runtime is 100%
-reproducible.
+# install: DB + starter safety policy + hook wiring
+chaperone init
 
-**One gate, three seams.** The same policy engine, inbox, and ledger guard three
-different surfaces:
+# run the gate + dashboard API
+chaperone serve
+```
 
-- **`chaperone hook`** — intercepts coding agents (Claude Code, Cursor) via
-  PreToolUse hooks. Shell commands, file writes, deletes, reads — every action
-  is checked before it runs.
-- **`chaperone gateway`** — a streamable-HTTP reverse proxy that sits in front
-  of any MCP server, the org-wide chokepoint for customer-facing agents.
-- **`chaperone shim`** — an MCP stdio proxy for desktop clients and local tools.
+Open the dashboard, paste the token from `init`, ask your agent to
+`rm -rf /`, and watch it get blocked with a receipt:
 
-**Tamper-evident proof.** The ledger is a SHA-256 hash chain with RFC 6962
-Merkle checkpoints, Ed25519-signed, with optional Rekor v2 / RFC 3161 timestamp
-anchoring. After anything happens, you can prove exactly what the agent tried
-and whether it was stopped — and any tampering breaks the chain.
+```bash
+chaperone ledger verify      # CHAIN OK
+```
 
-**Human-in-the-loop that binds.** Escalations carry a *params-binding hash*: an
-approval covers only the exact parameters that were escalated, nothing else.
-Approvals expire, and a sweeper auto-denies stale ones.
+Compile a policy from a plain-English SOP (PDF / Markdown / DOCX):
 
-## Compliance & standards
+```bash
+chaperone policy compile ./refund-sop.pdf --provider ollama
+chaperone policy activate refund-sop
+```
 
-Chaperone is built to map to the frameworks enterprise auditors already know.
-The honest claim: **it maps to standards — it does not self-certify.**
+The compile is LLM-assisted, **offline**, and nothing activates without a
+human pressing approve. The runtime never calls a model.
 
-- **OWASP Top 10 for Agentic Applications (ASI01–ASI10)** — goal-hijack
-  resistance, tool-misuse thresholds, identity decay, code-exec blocks, HITL
-  reasoning traces, rogue-agent kill switch.
-- **EU AI Act** — Art. 9 (per-action risk management), Art. 12 (automatic
-  tamper-evident logging), Art. 14 (human oversight), Art. 72/73 (monitoring &
-  incident reconstruction). `chaperone ledger export --format eu-ai-act`
-  produces the evidence bundle.
-- **NIST AI Risk Management Framework** — GOVERN / MAP / MEASURE / MANAGE
-  operationalized through policy lifecycle, shadow mode, the E1–E6 benchmark,
-  and the gate itself.
-- **Cloud Security Alliance** — AICM v1.1 agentic controls, AIGF just-in-time
-  access, and **AARM v1.0** (launch claim: *Aligned*; Core conformance is a
-  post-production milestone with production evidence).
-- **ISO 42001 / SOC 2** — `chaperone ledger export --format soc2` ships the
-  audit-evidence pack for the near-term enterprise buyer.
-- **IETF WIMSE / MCP / EMA** — consumes workload identity, integrates with the
-  IdP-authoritative access model: *"AuthN/coarse-grant lives in the IdP; per-call
-  AuthZ + proof lives in Chaperone."*
+## Why not prompt-based guards?
 
-The full mapping table is in [`docs/compliance-mapping.md`](docs/compliance-mapping.md)
-and [`docs/aarm-mapping.md`](docs/aarm-mapping.md).
+| Approach | Failure mode |
+|---|---|
+| "Be careful" system prompts | Social engineering defeats it. Unverifiable. |
+| Model self-reflection | The model is also the attack surface. |
+| Ask-a-human-every-time | Unusable at 40 calls/minute. |
+| **Chaperone** | **Deterministic rules, evaluated in ~6 ms, outside the model.** |
+
+**One gate, three seams.** The same engine, inbox, and ledger guard every
+surface an agent acts through:
+
+- **`chaperone hook`** - PreToolUse interception for coding agents
+  (Claude Code, Cursor). Every shell command, file write, and delete is
+  checked before it runs.
+- **`chaperone gateway`** - a streamable-HTTP reverse proxy in front of any
+  MCP server. The org-wide chokepoint for customer-facing agents.
+- **`chaperone shim`** - an MCP stdio proxy for desktop clients.
+
+**Human oversight that binds.** Escalations are not a bare "approve" button.
+An approval is bound to the exact parameter hash that was escalated, expires
+on a timer, and is single-use. A sweeper auto-denies stale tickets.
+
+**Proof, not logs.** Every verdict is written to an append-only SHA-256 hash
+chain *before* the verdict is returned. Checkpoints are RFC 6962 Merkle trees
+signed with Ed25519. Any tampering breaks the chain. Export evidence packs
+with `chaperone ledger export --format eu-ai-act|soc2`.
+
+## The numbers
+
+Measured by the checked-in benchmark (`chaperone bench`, seed 1337, 1038
+scenarios, 14 attack classes, real server over real HTTP). Wilson 95% CIs,
+because point estimates are marketing:
+
+| Metric | Result |
+|---|---|
+| Block recall on attack corpus | **1.000** (CI 0.992 - 1.000) |
+| False-block rate on benign calls | **0.000** |
+| p95 decision latency | **5.9 ms** |
+| Ledger chain verified | **true** |
+| Test suite | **149 tests, green** |
+
+The gold policies and corpus are aligned by construction and checked in for
+external audit. The CI lower bounds are the defensible claims.
+
+## Compliance
+
+Chaperone maps to the frameworks auditors already know. The honest claim: it
+maps, it does not self-certify.
+
+<details>
+<summary><b>Framework mapping</b> (click to expand)</summary>
+
+| Framework | Chaperone control |
+|---|---|
+| **OWASP Agentic Top 10 (ASI01-10)** | Out-of-band evaluation, param thresholds, identity decay, HITL with reasoning traces, kill switch |
+| **EU AI Act** | Art. 9 per-action risk mgmt, Art. 12 tamper-evident logging, Art. 14 human oversight, Art. 72/73 monitoring + `--format eu-ai-act` export |
+| **NIST AI RMF** | GOVERN (policy lifecycle), MAP (shadow mode), MEASURE (E1-E6 bench), MANAGE (the gate) |
+| **CSA AARM v1.0** | R1-R6 mapped, launch claim "Aligned", Core conformance post-production |
+| **SOC 2 / ISO 42001** | `chaperone ledger export --format soc2` evidence pack |
+| **IETF WIMSE / MCP / EMA** | Consumes workload identity; per-call AuthZ lives in Chaperone, AuthN in the IdP |
+
+Full tables: [`docs/compliance-mapping.md`](docs/compliance-mapping.md),
+[`docs/aarm-mapping.md`](docs/aarm-mapping.md).
+
+</details>
 
 ## Architecture
 
 ```
 crates/
-  chaperone-core/     the pure library — models, IR, engine, ledger, storage,
-                      cache, escalation, compiler, document parsers
-  chaperone-server/   the axum app factory + routes (decisions, policies,
-                      escalations, ledger, health, metrics, ws)
-  chaperone-cli/      the single `chaperone` binary (clap verbs)
-dashboard/            React + TypeScript (Vite): live decision stream, HITL
-                      inbox, ledger explorer, policy compiler
-bench/                E1–E6: attack corpus, gold policies, scenario runner
-policies/             canonical Cedar entity schema + starter policy
-docs/                 the locked spec — flows, wire contracts, data model,
-                      policy IR, threat model, compliance mapping
+  chaperone-core/     pure library: models, IR, engine, ledger, storage,
+                      cache, escalation, compiler
+  chaperone-server/   axum app factory + frozen route set
+  chaperone-cli/      the single `chaperone` binary
+  chaperone-bench/    E1-E6 harness: attack corpus, gold policies, runner
+dashboard/            React + TS: inbox, live stream, ledger explorer
 ```
 
-The layering law: `models → ir | engine | ledger | storage | cache | escalation
-| compiler → decision → server | cli`. The pure layers (models, IR, engine) do
-zero I/O, which is what makes replay, differential testing, and the WASM demo
-possible.
+The pure layers (models, IR, engine) do zero I/O. That is what makes replay,
+differential testing against Cedar, and deterministic benchmarks possible.
 
-## Quickstart
+The non-negotiables, enforced in code:
 
-```bash
-# build
-cargo build -p chaperone-cli --release
-
-# install the gate and a starter safety policy
-chaperone init
-
-# start the gate + dashboard API
-chaperone serve
-
-# verify your enforcement is live (runs a real canary block)
-chaperone doctor
-```
-
-Then open the dashboard, connect with the token printed by `init`, and watch
-decisions stream in as your agent acts.
-
-To compile a policy from a plain-English document (PDF / Markdown / DOCX /
-HTML), use the Policies tab in the dashboard, or:
-
-```bash
-chaperone policy compile ./refund-sop.pdf --provider ollama
-chaperone policy activate <policy-id>
-```
-
-## Commands
-
-```
-chaperone init                 install hooks + starter policy + agent registry
-chaperone hook                 the PreToolUse intercept point (Claude Code/Cursor)
-chaperone serve                the gate HTTP service + WebSocket stream
-chaperone gateway --upstream U run an MCP streamable-HTTP chokepoint
-chaperone shim                 run an MCP stdio proxy
-chaperone doctor               validate hook wiring, ledger, policy, + live canary
-chaperone approve <id>         approve an escalation (params-bound, single-use)
-chaperone deny <id>            deny an escalation
-chaperone escalations list     list the pending HITL queue
-chaperone policy compile|edit|lint|test|activate
-chaperone ledger verify|prove|checkpoint|export
-chaperone bench                run the E1–E6 benchmark
-```
-
-## Development
-
-```bash
-make check        # fmt + clippy (-D warnings) + cargo check
-make test         # cargo test --workspace
-make test-all     # cargo test --workspace --all-features
-make bench        # run the benchmark suite
-```
-
-Windows is a first-class platform (it's the primary dev/demo surface); CI runs
-`windows-latest` + `ubuntu-latest`.
+1. **Fail-closed always.** No fail-open flag exists. Any error blocks.
+2. **No LLM in the decision path.** The model writes policy offline; a human
+   approves it; the engine never calls one.
+3. **Append-then-respond.** No ledger entry, no verdict.
+4. **One canonical hashing path.** Everything hashed goes through one module.
+5. **Determinism.** No wall clock, no randomness inside evaluation. Time is
+   injected.
 
 ## Status
 
-Under active development. The core is implemented and tested end-to-end:
-deterministic evaluation, fail-closed interceptions on all three seams,
-append-only ledger with signed checkpoints, human-in-the-loop escalations, the
-NL→policy compiler, and the E1–E6 benchmark corpus. The roadmap (see
-[`docs/goals.md`](docs/goals.md)) covers post-launch items like Redis tier
-distribution, Postgres fleet mode, and WASM plugins.
+The core is implemented and tested end-to-end: deterministic evaluation,
+hook interception with fail-closed denies, append-only ledger with signed
+checkpoints, HITL escalations, the NL-to-policy compiler, dashboard, and the
+benchmark. The MCP gateway and stdio shim seams land next (the signed
+request-state HMAC core is done and tested). Roadmap:
+[`docs/goals.md`](docs/goals.md).
+
+## Contributing
+
+Issues and PRs welcome. `make check` (fmt + clippy -D warnings) and
+`make test` must pass. Windows is a first-class platform; CI runs
+windows-latest and ubuntu-latest.
 
 ## License
 
-Apache-2.0. See [`LICENSE`](LICENSE) and [`NOTICE`](NOTICE).
+Apache-2.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE).
