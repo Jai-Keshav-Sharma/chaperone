@@ -4,8 +4,11 @@
 
 **Seatbelts for `--dangerously-skip-permissions`.**
 
-ALLOW / BLOCK / ESCALATE before every tool call, compiled from plain-English
-policy, with a tamper-evident ledger you can hand to an auditor.
+Chaperone is open-source **AI agent security infrastructure**. A deterministic
+policy engine returns ALLOW / BLOCK / ESCALATE before every tool call, and a
+tamper-evident audit ledger turns every decision into compliance evidence
+(EU AI Act, SOC 2). Ships as a Claude Code / Cursor guardrail hook, an MCP
+security gateway, and a stdio shim.
 
 [![CI](https://github.com/Jai-Keshav-Sharma/chaperone/actions/workflows/ci.yml/badge.svg)](https://github.com/Jai-Keshav-Sharma/chaperone/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
@@ -47,7 +50,9 @@ job: every call gets a verdict, every verdict gets a receipt.
 ```
 
 No LLM in the decision path. A prompt injection cannot talk its way around a
-rule, because there is nothing to talk to.
+rule, because there is nothing to talk to. That is the difference between
+prompt-based guardrails and an enforcement layer: LLM guardrails that live in
+the prompt are suggestions; Chaperone is infrastructure.
 
 ## Demo
 

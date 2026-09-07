@@ -22,19 +22,19 @@
 
   <!-- verdict chip: ALLOW (0-2s), BLOCK (2-4s), ESCALATE (4-6s), cycling -->
   <g font-size="17">
-    <g>
+    <g opacity="0">
       <animate attributeName="opacity" values="0;1;1;0;0" keyTimes="0;0.06;0.30;0.36;1" dur="6s" begin="0s" repeatCount="indefinite"/>
       <rect x="70" y="216" width="128" height="42" rx="10" fill="#10b9811a" stroke="#10b981" stroke-width="1.2"/>
       <text x="88" y="243" fill="#34d399" font-weight="700">&#9654; ALLOW</text>
       <text x="216" y="243" fill="#565b63">forwarded, ledgered</text>
     </g>
-    <g>
+    <g opacity="0">
       <animate attributeName="opacity" values="0;1;1;0;0" keyTimes="0;0.06;0.30;0.36;1" dur="6s" begin="2s" repeatCount="indefinite"/>
       <rect x="70" y="216" width="118" height="42" rx="10" fill="#ef44441a" stroke="#ef4444" stroke-width="1.2"/>
       <text x="88" y="243" fill="#f87171" font-weight="700">&#9632; BLOCK</text>
       <text x="206" y="243" fill="#565b63">no side effects, receipt issued</text>
     </g>
-    <g>
+    <g opacity="0">
       <animate attributeName="opacity" values="0;1;1;0;0" keyTimes="0;0.06;0.30;0.36;1" dur="6s" begin="4s" repeatCount="indefinite"/>
       <rect x="70" y="216" width="164" height="42" rx="10" fill="#f59e0b1a" stroke="#f59e0b" stroke-width="1.2"/>
       <text x="88" y="243" fill="#fbbf24" font-weight="700">&#9670; ESCALATE</text>
