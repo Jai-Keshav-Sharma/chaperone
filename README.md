@@ -1,12 +1,11 @@
 <div align="center">
 
-# chaperone
+<img src="docs/assets/banner.svg" alt="chaperone — deterministic authorization gate for AI agents" width="620">
 
 **Seatbelts for `--dangerously-skip-permissions`.**
 
-A deterministic authorization gate for AI agents. ALLOW / BLOCK / ESCALATE
-before every tool call, compiled from plain-English policy, with a
-tamper-evident ledger you can hand to an auditor.
+ALLOW / BLOCK / ESCALATE before every tool call, compiled from plain-English
+policy, with a tamper-evident ledger you can hand to an auditor.
 
 [![CI](https://github.com/Jai-Keshav-Sharma/chaperone/actions/workflows/ci.yml/badge.svg)](https://github.com/Jai-Keshav-Sharma/chaperone/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
